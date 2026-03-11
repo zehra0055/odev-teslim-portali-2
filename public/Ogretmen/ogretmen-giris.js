@@ -8,11 +8,13 @@ console.count("PAGE JS INIT");
 //  - POST /api/auth/forgot
 //  - POST /api/auth/reset/verify
 //  - POST /api/auth/reset
-//  - relative URL kullanır (fetch hatası olmaz)
 // ==========================
 
 const ROLE = "teacher";
 const PANEL_URL = "/Ogretmen/ogretmen-panel.html";
+
+// Sunucu URL'si: Kendi bilgisayarında 3000 portunda çalışıyorsa bu şekilde kalmalı.
+const API_BASE = "http://localhost:3000";
 
 // ---- DOM ----
 const tabs = document.querySelectorAll(".tab");
@@ -214,7 +216,8 @@ loginForm?.addEventListener("submit", async (e) => {
       throw new Error("E-posta ve şifre zorunlu.");
     }
 
-    const res = await fetch(`/api/auth/login`, {
+    // API_BASE eklendi
+    const res = await fetch(`${API_BASE}/api/auth/login`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ role: ROLE, email, password }),
@@ -231,10 +234,16 @@ loginForm?.addEventListener("submit", async (e) => {
     localStorage.setItem("role", ROLE);
     localStorage.setItem("user", JSON.stringify(data.user || {}));
 
-    window.location.replace(PANEL_URL);
+    // Yönlendirmeyi local formata uygun yap
+    window.location.href = API_BASE ? `${API_BASE}${PANEL_URL}` : PANEL_URL;
+
   } catch (err) {
     console.error("LOGIN ERR:", err);
-    setAlert(loginAlert, "err", err?.message || "Giriş başarısız");
+    if (err.message.includes("Failed to fetch")) {
+      setAlert(loginAlert, "err", "Sunucuya bağlanılamadı. Arka plan sunucusunun çalıştığından emin olun.");
+    } else {
+      setAlert(loginAlert, "err", err?.message || "Giriş başarısız");
+    }
   } finally {
     busy = false;
     setLoading(loginSubmit, false);
@@ -270,7 +279,8 @@ registerForm?.addEventListener("submit", async (e) => {
       throw new Error("Lütfen tüm alanları doldur (Ad, Soyad, Email, Şifre).");
     }
 
-    const res = await fetch(`/api/auth/register`, {
+    // API_BASE eklendi
+    const res = await fetch(`${API_BASE}/api/auth/register`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ role: ROLE, name, email, password }),
@@ -284,15 +294,17 @@ registerForm?.addEventListener("submit", async (e) => {
     }
 
     setAlert(regAlert, "ok", "Kayıt başarılı. Giriş yapabilirsin.");
+    registerForm.reset();
     setTab("login");
   } catch (err) {
     console.error("REGISTER ERR:", err);
-    setAlert(regAlert, "err", err?.message || "Kayıt başarısız");
+    if (err.message.includes("Failed to fetch")) {
+      setAlert(regAlert, "err", "Sunucuya bağlanılamadı. Arka plan sunucusunun çalıştığından emin olun.");
+    } else {
+      setAlert(regAlert, "err", err?.message || "Kayıt başarısız");
+    }
   } finally {
     busy = false;
     setLoading(regSubmit, false);
   }
 });
-
-
-

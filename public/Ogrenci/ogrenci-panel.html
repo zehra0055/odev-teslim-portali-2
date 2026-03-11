@@ -13,7 +13,6 @@
     <span class="blob b3"></span>
   </div>
 
-  <!-- TOP BAR -->
   <header class="topbar">
     <div class="wrap topbar-inner">
       <a class="brand" href="../Main/main.html">
@@ -22,15 +21,28 @@
       </a>
 
       <div class="top-actions">
+        <div class="notif-wrap">
+          <button class="icon-btn notif-btn" id="notifBtn" aria-label="Bildirimler">
+            🔔 <span class="badge" id="notifBadge" hidden>0</span>
+          </button>
+          
+          <div class="notif-dropdown" id="notifDropdown" hidden>
+            <div class="notif-header">
+              <span>Bildirimler</span>
+            </div>
+            <div class="notif-list" id="notifList">
+              <div class="notif-item">Henüz bildirim yok.</div>
+            </div>
+          </div>
+        </div>
+
         <div class="who" id="who">👩‍🎓 Öğrenci</div>
         <button class="btn ghost" id="logoutBtn">Çıkış</button>
       </div>
     </div>
   </header>
 
-  <!-- APP -->
   <main class="wrap app">
-    <!-- SIDEBAR -->
     <aside class="sidebar">
       <div class="side-card">
         <div class="side-title">Sınıflarım</div>
@@ -53,6 +65,7 @@
           <button class="navbtn" data-view="assignments">📌 Ödevler</button>
           <button class="navbtn" data-view="submit">📤 Teslim Et</button>
           <button class="navbtn" data-view="history">🕘 Geçmiş</button>
+          <button class="navbtn" data-view="groups">💬 Gruplar</button>
         </div>
 
         <div class="mini">
@@ -64,10 +77,8 @@
       </div>
     </aside>
 
-    <!-- CONTENT -->
     <section class="content">
 
-      <!-- DASHBOARD -->
       <section class="view active" id="view-dashboard">
         <div class="page-head">
           <div>
@@ -115,7 +126,6 @@
         </div>
       </section>
 
-      <!-- ASSIGNMENTS -->
       <section class="view" id="view-assignments">
         <div class="page-head">
           <div>
@@ -134,63 +144,58 @@
         </div>
       </section>
 
-      <!-- SUBMIT -->
-<section class="view" id="view-submit">
-  <div class="page-head">
-    <div>
-      <h1>Teslim Et</h1>
-      <p class="muted">Ödev seç, PDF/ZIP dosyasını seç, not ekle, gönder.</p>
-    </div>
-    <div class="chip" id="subClassChip">Sınıf: —</div>
-  </div>
-
-  <div class="grid-2">
-    <div class="panel">
-      <div class="panel-title">Ödev Seç</div>
-      <div class="panel-sub">Seçili sınıftaki ödevlerden birini seç.</div>
-
-      <div class="field">
-        <label for="assignmentSelect">Ödev</label>
-        <select id="assignmentSelect"></select>
-      </div>
-
-      <div class="empty" id="emptyAssignSelect" hidden>
-        Bu sınıfta ödev yok. Öğretmen ödev açınca burada görünür.
-      </div>
-
-      <div class="split"></div>
-
-      <div class="tip">
-        <b>Not:</b> Sadece <span class="mono">.pdf</span> veya <span class="mono">.zip</span> yükleyebilirsin.
-      </div>
-    </div>
-
-    <div class="panel">
-      <div class="panel-title">Teslim Bilgisi</div>
-      <div class="panel-sub">Dosyayı seç ve gönder.</div>
-
-      <form id="submitForm" class="form">
-        <!-- ✅ GERÇEK DOSYA -->
-        <div class="field">
-          <label for="fileInput">Dosya (PDF/ZIP)</label>
-          <input type="file" id="fileInput" accept=".pdf,.zip" required />
+      <section class="view" id="view-submit">
+        <div class="page-head">
+          <div>
+            <h1>Teslim Et</h1>
+            <p class="muted">Ödev seç, PDF/ZIP dosyasını seç, not ekle, gönder.</p>
+          </div>
+          <div class="chip" id="subClassChip">Sınıf: —</div>
         </div>
 
-        <div class="field">
-          <label for="studentNote">Öğrenci Notu (opsiyonel)</label>
-          <textarea id="studentNote" rows="4" placeholder="Kısa not..."></textarea>
+        <div class="grid-2">
+          <div class="panel">
+            <div class="panel-title">Ödev Seç</div>
+            <div class="panel-sub">Seçili sınıftaki ödevlerden birini seç.</div>
+
+            <div class="field">
+              <label for="assignmentSelect">Ödev</label>
+              <select id="assignmentSelect"></select>
+            </div>
+
+            <div class="empty" id="emptyAssignSelect" hidden>
+              Bu sınıfta ödev yok. Öğretmen ödev açınca burada görünür.
+            </div>
+
+            <div class="split"></div>
+
+            <div class="tip">
+              <b>Not:</b> Sadece <span class="mono">.pdf</span> veya <span class="mono">.zip</span> yükleyebilirsin.
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-title">Teslim Bilgisi</div>
+            <div class="panel-sub">Dosyayı seç ve gönder.</div>
+
+            <form id="submitForm" class="form">
+              <div class="field">
+                <label for="fileInput">Dosya (PDF/ZIP)</label>
+                <input type="file" id="fileInput" accept=".pdf,.zip" required />
+              </div>
+
+              <div class="field">
+                <label for="studentNote">Öğrenci Notu (opsiyonel)</label>
+                <textarea id="studentNote" rows="4" placeholder="Kısa not..."></textarea>
+              </div>
+
+              <button class="btn primary" type="submit">Teslim Et</button>
+              <div class="alert" id="submitAlert" hidden></div>
+            </form>
+          </div>
         </div>
+      </section>
 
-        <button class="btn primary" type="submit">Teslim Et</button>
-        <div class="alert" id="submitAlert" hidden></div>
-      </form>
-    </div>
-  </div>
-</section>
-
-
-
-      <!-- HISTORY -->
       <section class="view" id="view-history">
         <div class="page-head">
           <div>
@@ -264,10 +269,114 @@
         </div>
       </section>
 
+      <section class="view" id="view-groups">
+        <div class="page-head">
+          <div>
+            <h1>💬 Sınıf Grupları</h1>
+            <p class="muted">Sınıf arkadaşlarınla çalışma grupları kur ve mesajlaş.</p>
+          </div>
+          <button class="btn primary" id="openCreateGroupModal">➕ Yeni Grup Kur</button>
+        </div>
+        
+        <div class="chat-app">
+          <div class="chat-sidebar">
+            <div style="padding: 14px; font-weight: 900; border-bottom: 1px solid var(--line);">Gruplarım</div>
+            <div class="chat-list" id="groupList"></div>
+          </div>
+          
+          <div class="chat-main" id="groupChatArea" hidden>
+            <div class="chat-header" style="display:flex; justify-content:space-between; align-items:center;">
+              <span id="activeGroupName">Grup Adı</span>
+              <button class="btn ghost" id="openGroupSettingsBtn" title="Grup Ayarları">⚙️ Ayarlar</button>
+            </div>
+            <div class="chat-messages" id="groupChatBody"></div>
+            <div class="chat-input-area">
+              <input type="text" id="groupChatInput" placeholder="Gruba mesaj gönder..." />
+              <button class="btn primary" id="sendGroupMsgBtn">Gönder</button>
+            </div>
+          </div>
+
+          <div class="chat-settings" id="groupSettingsArea" hidden>
+            <div style="padding: 16px; font-weight: 900; border-bottom: 1px solid var(--line); display:flex; justify-content:space-between; align-items:center; font-size:16px;">
+              ⚙️ Grup Ayarları
+              <button class="icon-btn" id="closeGroupSettingsBtn">✕</button>
+            </div>
+            <div style="padding:16px; overflow-y:auto; flex:1; display:flex; flex-direction:column; gap:20px;">
+              
+              <div class="alert" id="groupSettingsAlert" hidden></div>
+
+              <div class="field">
+                <label>Grup İsmi Değiştir</label>
+                <div style="display:flex; gap:8px;">
+                  <input type="text" id="editGroupName" placeholder="Yeni İsim" />
+                  <button class="btn primary" id="saveGroupNameBtn">Kaydet</button>
+                </div>
+              </div>
+
+              <div class="field">
+                <label>Gruba Öğrenci Ekle</label>
+                <div id="addMembersList" class="checkbox-container"></div>
+                <button class="btn ghost block" id="addMembersBtn" style="margin-top:10px;">Seçilenleri Ekle</button>
+              </div>
+
+              <div class="field">
+                <label>Mevcut Üyeler</label>
+                <div id="groupMembersList" style="display:flex; flex-direction:column; gap:8px;"></div>
+              </div>
+
+              <div style="margin-top:auto;">
+                <button class="btn block" style="background:#ef4444; color:white; border:none;" id="leaveGroupBtn">Gruptan Çık</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="chat-main-empty" id="groupChatEmpty">
+            Sohbet etmek için soldan bir grup seçin.
+          </div>
+        </div>
+      </section>
+
     </section>
   </main>
 
-  <!-- MODAL: Join by code -->
+  <div class="floating-widgets">
+    <div class="widget-panel" id="chatPanel" hidden>
+      <div class="widget-head chat-head">
+        <div class="w-title">👨‍🏫 Öğretmene Sor</div>
+        <button class="icon-btn w-close" id="closeChat">✕</button>
+      </div>
+      <div class="widget-body" id="privateChatBody">
+        <div style="text-align:center; color:#64748b; font-size:12px; margin-top:20px;">Öğretmeninle arandaki özel sohbet...</div>
+      </div>
+      <div class="widget-footer">
+        <input type="text" id="privateChatInput" placeholder="Bir mesaj yazın..." />
+        <button class="btn primary" id="sendPrivateChatBtn">Gönder</button>
+      </div>
+    </div>
+
+    <div class="widget-panel" id="aiPanel" hidden>
+      <div class="widget-head ai-head">
+        <div class="w-title">🤖 Yapay Zeka Asistanı</div>
+        <button class="icon-btn w-close" id="closeAi">✕</button>
+      </div>
+      <div class="widget-body" id="aiBody">
+        <div class="w-msg others ai-msg">
+          <span class="w-sender">Sistem Asistanı</span>
+          <div class="w-bubble">Merhaba! 🌟 Bugün sana ödevlerinde nasıl yardımcı olabilirim? Konu anlatımı mı istersin, yoksa ipucu mu?</div>
+        </div>
+      </div>
+      <div class="widget-footer">
+        <input type="text" id="aiInput" placeholder="Asistana soru sor..." />
+        <button class="btn ai-btn" id="sendAiBtn">Sor</button>
+      </div>
+    </div>
+
+    <div class="widget-triggers">
+      <button class="trigger-btn ai-trigger" id="aiBtn" title="AI Asistanı">🤖</button>
+      <button class="trigger-btn chat-trigger" id="chatBtn" title="Öğretmenle Sohbet">👨‍🏫</button>
+    </div>
+  </div>
+
   <div class="modal" id="joinModal" aria-hidden="true">
     <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="joinTitle">
       <div class="modal-top">
@@ -287,7 +396,6 @@
     </div>
   </div>
 
-  <!-- MODAL: Find teacher -->
   <div class="modal" id="findModal" aria-hidden="true">
     <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="findTitle">
       <div class="modal-top">
@@ -310,6 +418,26 @@
 
         <div class="alert" id="findAlert" hidden></div>
       </div>
+    </div>
+  </div>
+
+  <div class="modal" id="createGroupModal" aria-hidden="true">
+    <div class="modal-card">
+      <div class="modal-top">
+        <div class="modal-title">Sınıf Grubu Kur</div>
+        <button class="icon-btn" data-close="createGroupModal">✕</button>
+      </div>
+      <div class="field" style="margin-top:12px;">
+        <label>Grup İsmi</label>
+        <input type="text" id="newGroupName" placeholder="Örn: Fizik Proje Ekibi" />
+      </div>
+      <div class="field">
+        <label>Gruba Eklenecek Öğrenciler</label>
+        <div id="studentCheckboxes" class="checkbox-container">
+        </div>
+      </div>
+      <button class="btn primary block" id="submitCreateGroupBtn" style="margin-top:10px;">Grubu Oluştur</button>
+      <div class="alert" id="groupAlert" hidden></div>
     </div>
   </div>
 

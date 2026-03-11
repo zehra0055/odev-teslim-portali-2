@@ -1,13 +1,10 @@
 "use strict";
 
 /**
- * ✅ ÖĞRETMEN PANEL JS (FULL BACKEND)
- * - Auth: token/role/user localStorage
- * - Classes: BACKEND (mine/create)
- * - Members: BACKEND (by class)
- * - Assignments: BACKEND (create/list by class)
- * - Submissions: BACKEND (list by class + review)
+ * ✅ ÖĞRETMEN PANEL JS (FULL BACKEND + BİLDİRİM + 1'e 1 CHAT + GRUPLAR VE AYARLAR)
  */
+
+const API_BASE = "http://localhost:3000"; 
 
 // ========= AUTH GUARD =========
 const token = localStorage.getItem("token");
@@ -66,20 +63,23 @@ function pillForStatus(s) {
 }
 
 // ========= API =========
-const API_BASE = ""; // aynı origin
 async function apiFetch(path, options = {}) {
   const headers = {
     ...(options.headers || {}),
   };
 
-  // GET isteklerinde Content-Type koymak bazen gereksiz; ama JSON göndereceksek koyalım
   const method = (options.method || "GET").toUpperCase();
   const hasBody = options.body !== undefined && options.body !== null;
 
   if (hasBody) headers["Content-Type"] = "application/json";
   if (token) headers["Authorization"] = `Bearer ${token}`;
 
-  const res = await fetch(API_BASE + path, { ...options, method, headers });
+  let res;
+  try {
+    res = await fetch(API_BASE + path, { ...options, method, headers });
+  } catch(e) {
+    throw new Error("Sunucuya ulaşılamıyor. Arka plan açık mı?");
+  }
 
   let data = null;
   try {
@@ -106,6 +106,7 @@ const views = {
   assignments: document.getElementById("view-assignments"),
   submissions: document.getElementById("view-submissions"),
   students: document.getElementById("view-students"),
+  groups: document.getElementById("view-groups") // YENİ EKLENDİ
 };
 
 const classSelect = document.getElementById("classSelect");
@@ -190,11 +191,14 @@ const copyAlert = document.getElementById("copyAlert");
 // ========= STATE =========
 let activeClassId = null;
 let selectedSubmissionId = null;
+let selectedChatStudentId = null; 
+let activeGroupId = null; // YENİ: Öğretmenin o an baktığı grup
 
 let classesCache = [];
 let membersCache = [];
 let assignmentsCache = [];
 let submissionsCache = [];
+let groupsCache = []; // YENİ: Gruplar önbelleği
 
 // ========= DATA LAYER (BACKEND) =========
 async function getClasses() {
@@ -208,20 +212,17 @@ async function getMembersByClass(classId) {
 }
 
 async function getAssignmentsByClass(classId) {
-  const data = await apiFetch(`/api/assignments/byClass?classId=${encodeURIComponent(classId)}`);
+  const data = await apiFetch(`/api/assignments/by-class?classId=${encodeURIComponent(classId)}`);
   return Array.isArray(data?.assignments) ? data.assignments : [];
 }
 
 async function createAssignmentApi({ classId, course, title, desc, due }) {
   const body = {
     classId,
-    teacherId: me.id,
-    teacherName: me.name || "Öğretmen",
     course: (course || "").trim(),
     title: (title || "").trim(),
     desc: (desc || "").trim(),
     due: due ? new Date(due).toISOString() : "",
-    clientId: uid("ass"), // idyi backend üretse bile debug için iyi
   };
 
   const data = await apiFetch(`/api/assignments/create`, {
@@ -233,42 +234,298 @@ async function createAssignmentApi({ classId, course, title, desc, due }) {
 }
 
 async function getSubmissionsByClass(classId) {
-  const data = await apiFetch(`/api/submissions/byClass?classId=${encodeURIComponent(classId)}`);
+  const data = await apiFetch(`/api/teacher/submissions?classId=${encodeURIComponent(classId)}`);
   return Array.isArray(data?.submissions) ? data.submissions : [];
 }
 
 async function reviewSubmissionApi({ submissionId, grade, status, feedback }) {
   const body = {
     submissionId,
-    grade, // "" veya sayı
+    grade,
     status,
     feedback,
   };
 
-  const data = await apiFetch(`/api/submissions/review`, {
-    method: "PATCH",
+  const data = await apiFetch(`/api/teacher/submissions/review`, {
+    method: "POST",
     body: JSON.stringify(body),
   });
 
   return data?.submission || null;
 }
 
+// ========= YENİ: GRUP SOHBETİ VE YÖNETİMİ MODÜLÜ (ÖĞRETMEN GOD MODE) =========
+async function loadGroups() {
+  if(!activeClassId) return;
+  try {
+    const data = await apiFetch(`/api/groups/${activeClassId}`);
+    groupsCache = data.groups || [];
+    renderGroupList();
+  } catch(e) {}
+}
+
+function renderGroupList() {
+  const list = document.getElementById("groupList");
+  if(!list) return;
+  list.innerHTML = "";
+  if(groupsCache.length === 0) {
+    list.innerHTML = "<div style='color:#64748b; font-size:13px; text-align:center; margin-top:20px;'>Sınıfta henüz öğrenci grubu yok.</div>";
+    return;
+  }
+  groupsCache.forEach(g => {
+    const div = document.createElement("div");
+    div.className = `group-item ${g.id === activeGroupId ? 'active' : ''}`;
+    div.textContent = g.name;
+    div.onclick = () => {
+      activeGroupId = g.id;
+      const titleEl = document.getElementById("activeGroupName");
+      if(titleEl) titleEl.textContent = g.name;
+      
+      const emptyArea = document.getElementById("groupChatEmpty");
+      if(emptyArea) emptyArea.hidden = true;
+      
+      const chatArea = document.getElementById("groupChatArea");
+      if(chatArea) chatArea.hidden = false;
+      
+      const settingsArea = document.getElementById("groupSettingsArea");
+      if(settingsArea) settingsArea.hidden = true;
+      
+      renderGroupList(); 
+      loadGroupMessages();
+    };
+    list.appendChild(div);
+  });
+}
+
+async function loadGroupMessages() {
+  if(!activeGroupId) return;
+  const body = document.getElementById("groupChatBody");
+  if(!body) return;
+  try {
+    const data = await apiFetch(`/api/groups/${activeGroupId}/messages`);
+    body.innerHTML = "";
+    if(data.messages.length === 0) {
+      body.innerHTML = "<div style='text-align:center; color:#64748b; margin-top:20px; font-size:13px;'>Grupta henüz mesaj yok.</div>";
+      return;
+    }
+    data.messages.forEach(m => {
+      const isMine = m.senderId === me.id;
+      body.innerHTML += `<div class="w-msg ${isMine ? 'mine' : 'others'}"><span class="w-sender">${isMine ? '' : m.senderName}</span><div class="w-bubble">${m.text}</div></div>`;
+    });
+    body.scrollTop = body.scrollHeight;
+  } catch(e) {}
+}
+
+async function sendGroupMessage() {
+  const inp = document.getElementById("groupChatInput");
+  if(!inp || !inp.value.trim() || !activeGroupId) return;
+  const text = inp.value.trim(); inp.value = "";
+  const body = document.getElementById("groupChatBody");
+  if(body && body.innerHTML.includes("henüz mesaj yok")) body.innerHTML = "";
+  if(body) {
+    body.innerHTML += `<div class="w-msg mine"><div class="w-bubble">${text}</div></div>`;
+    body.scrollTop = body.scrollHeight;
+  }
+
+  try {
+    await apiFetch("/api/groups/message", { method: "POST", body: JSON.stringify({ groupId: activeGroupId, text }) });
+    loadGroupMessages();
+  } catch(e) {}
+}
+
+// Grup Ayarları (Sağ Menü) Verilerini Doldurma
+async function populateGroupSettings() {
+  const group = groupsCache.find(g => g.id === activeGroupId);
+  if(!group) return;
+  
+  const alertEl = document.getElementById("groupSettingsAlert");
+  if(alertEl) clearAlert(alertEl);
+  
+  const editName = document.getElementById("editGroupName");
+  if(editName) editName.value = group.name;
+  
+  const memList = document.getElementById("groupMembersList");
+  if(memList) {
+    memList.innerHTML = "";
+    group.members.forEach(mId => {
+      const student = membersCache.find(cm => cm.studentId === mId);
+      const name = student ? student.studentName : (mId === me.id ? "Öğretmen (Sen)" : "Bilinmeyen Üye");
+      
+      const div = document.createElement("div");
+      div.className = "member-item";
+      div.innerHTML = `<span>👤 ${name}</span> <button class="btn" style="background:#ef4444; color:white; padding:4px 10px; height:28px; font-size:12px;" title="Gruptan At">At</button>`;
+      
+      div.querySelector("button").onclick = async () => {
+        if(!confirm(`${name} isimli kullanıcıyı gruptan atmak istediğine emin misin?`)) return;
+        try {
+          await apiFetch(`/api/groups/${activeGroupId}/members/${mId}`, { method: "DELETE" });
+          if(alertEl) setAlert(alertEl, "ok", "Kullanıcı başarıyla atıldı.");
+          loadGroups(); setTimeout(populateGroupSettings, 500);
+        } catch(e) {
+          if(alertEl) setAlert(alertEl, "err", "Kullanıcı atılırken hata oluştu.");
+        }
+      };
+      memList.appendChild(div);
+    });
+  }
+
+  const addList = document.getElementById("addMembersList");
+  if(addList) {
+    addList.innerHTML = "";
+    const nonMembers = membersCache.filter(cm => !group.members.includes(cm.studentId));
+    
+    if(nonMembers.length === 0) {
+      addList.innerHTML = "<div style='color:#888; font-size:13px; font-weight:bold;'>Sınıftaki tüm öğrenciler bu grupta.</div>";
+    } else {
+      nonMembers.forEach(m => {
+        addList.innerHTML += `<label class="checkbox-row"><input type="checkbox" value="${m.studentId}"> ${m.studentName}</label>`;
+      });
+    }
+  }
+}
+
+// ========= YENİ: BİLDİRİM & SOHBET (ÖĞRENCİ SEÇMELİ & SIFIRLAMALI) =========
+async function loadNotifications() {
+  try {
+    const data = await apiFetch("/api/notifications");
+    const list = document.getElementById("notifList");
+    const badge = document.getElementById("notifBadge");
+    if(!list) return;
+    
+    if(!data.notifications || data.notifications.length === 0) {
+      list.innerHTML = '<div class="notif-item">Henüz bildirim yok.</div>';
+      if(badge) badge.hidden = true; // Kırmızı baloncuk tamamen gizlenir
+      return;
+    }
+    
+    if(badge) { 
+      badge.textContent = data.notifications.length; 
+      badge.hidden = false; 
+    }
+    
+    list.innerHTML = "";
+    data.notifications.reverse().forEach(n => {
+      const div = document.createElement("div");
+      div.className = "notif-item unread";
+      
+      let icon = "🔔";
+      if(n.text.includes("mesaj")) icon = "💬";
+      if(n.text.includes("teslim")) icon = "📥";
+
+      div.innerHTML = `<div class="notif-icon">${icon}</div><div class="notif-content"><div class="notif-text">${n.text}</div><div class="notif-time">${fmtDate(n.createdAt)}</div></div>`;
+      list.appendChild(div);
+    });
+  } catch(e) {
+    console.error("Bildirim hatası:", e);
+  }
+}
+
+// Sohbet için öğrenci listesini açılır menüye doldur
+function fillChatStudents() {
+  const sel = document.getElementById("chatStudentSelect");
+  if (!sel) return;
+  sel.innerHTML = '<option value="">-- Öğrenci Seçin --</option>';
+  
+  if (membersCache && membersCache.length > 0) {
+    membersCache.forEach(m => {
+      sel.innerHTML += `<option value="${m.studentId}">${m.studentName}</option>`;
+    });
+  }
+  
+  if(selectedChatStudentId) {
+    sel.value = selectedChatStudentId;
+  }
+}
+
+async function loadChat() {
+  const body = document.getElementById("privateChatBody"); // DİKKAT: Artık privateChatBody
+  
+  // Eğer sınıf yoksa veya öğrenci seçilmemişse uyarı ver
+  if(!activeClassId || !selectedChatStudentId) {
+    if(body) body.innerHTML = `<div style="text-align:center; color:#64748b; font-size:12px; margin-top:20px;">Sohbet etmek için yukarıdan bir öğrenci seçin...</div>`;
+    return;
+  }
+
+  try {
+    const data = await apiFetch(`/api/chat/${activeClassId}`);
+    if(!body) return;
+    
+    // Yalnızca Öğretmen (kendisi) ile Seçili Öğrenci arasındaki mesajları filtrele
+    const filteredMsgs = (data.messages || []).filter(m => 
+      (m.senderId === me.id && m.receiverId === selectedChatStudentId) ||
+      (m.senderId === selectedChatStudentId && m.receiverId === me.id)
+    );
+
+    if(filteredMsgs.length === 0) {
+      body.innerHTML = `<div style="text-align:center; color:#64748b; font-size:12px; margin-top:20px;">Bu öğrenciyle mesajlaşma başlatın...</div>`;
+      return;
+    }
+
+    body.innerHTML = "";
+    filteredMsgs.forEach(m => {
+      const isMine = m.senderId === me.id;
+      const div = document.createElement("div");
+      div.className = `w-msg ${isMine ? 'mine' : 'others'}`;
+      div.innerHTML = `<span class="w-sender">${isMine ? '' : m.senderName}</span><div class="w-bubble">${m.text}</div>`;
+      body.appendChild(div);
+    });
+    body.scrollTop = body.scrollHeight;
+  } catch(e) {
+    console.error("Chat hatası:", e);
+  }
+}
+
+async function sendChat() {
+  const inp = document.getElementById("privateChatInput"); // DİKKAT: Artık privateChatInput
+  if(!inp || !inp.value.trim() || !activeClassId) return;
+
+  if(!selectedChatStudentId) {
+    alert("Lütfen kime mesaj göndereceğini seçmek için yukarıdan bir öğrenci seçin.");
+    return;
+  }
+  
+  const text = inp.value.trim();
+  inp.value = ""; 
+  
+  const body = document.getElementById("privateChatBody");
+  if(body) {
+    if(body.innerHTML.includes("öğrenci seçin") || body.innerHTML.includes("mesajlaşma başlatın")) body.innerHTML = "";
+    body.innerHTML += `<div class="w-msg mine"><div class="w-bubble">${text}</div></div>`;
+    body.scrollTop = body.scrollHeight;
+  }
+
+  try {
+    // Alıcı olarak seçilen öğrencinin ID'sini (receiverId) arka plana gönderiyoruz
+    await apiFetch("/api/chat", { 
+      method: "POST", 
+      body: JSON.stringify({ classId: activeClassId, text: text, receiverId: selectedChatStudentId }) 
+    });
+    loadChat();
+  } catch(e) {
+    console.error("Mesaj gönderilemedi:", e);
+  }
+}
+
 // ========= UI / NAV =========
 function setView(name) {
   navBtns.forEach((b) => b.classList.toggle("active", b.dataset.view === name));
-  Object.entries(views).forEach(([k, el]) => el.classList.toggle("active", k === name));
+  Object.entries(views).forEach(([k, el]) => {
+    if(el) el.classList.toggle("active", k === name);
+  });
+  if(name === 'groups') loadGroups();
 }
 
 function setActiveClassChip() {
   const cls = classesCache.find((c) => c.id === activeClassId);
   const label = cls ? `Sınıf: ${cls.name}` : "Sınıf: —";
-  activeClassChip.textContent = label;
-  assignClassChip.textContent = label;
-  subClassChip.textContent = label;
-  studClassChip.textContent = label;
+  if (activeClassChip) activeClassChip.textContent = label;
+  if (assignClassChip) assignClassChip.textContent = label;
+  if (subClassChip) subClassChip.textContent = label;
+  if (studClassChip) studClassChip.textContent = label;
 }
 
 async function fillClassSelect() {
+  if (!classSelect) return;
   classSelect.innerHTML = "";
 
   try {
@@ -319,10 +576,10 @@ function requireActiveClass() {
 // ========= RENDER =========
 function renderKPIs() {
   if (!activeClassId) {
-    kpiStudents.textContent = "0";
-    kpiAssignments.textContent = "0";
-    kpiSubmissions.textContent = "0";
-    kpiPending.textContent = "0";
+    if(kpiStudents) kpiStudents.textContent = "0";
+    if(kpiAssignments) kpiAssignments.textContent = "0";
+    if(kpiSubmissions) kpiSubmissions.textContent = "0";
+    if(kpiPending) kpiPending.textContent = "0";
     return;
   }
 
@@ -331,17 +588,18 @@ function renderKPIs() {
   const subs = submissionsCache;
   const pending = subs.filter((s) => s.status !== "graded").length;
 
-  kpiStudents.textContent = members.length.toLocaleString("tr-TR");
-  kpiAssignments.textContent = as.length.toLocaleString("tr-TR");
-  kpiSubmissions.textContent = subs.length.toLocaleString("tr-TR");
-  kpiPending.textContent = pending.toLocaleString("tr-TR");
+  if(kpiStudents) kpiStudents.textContent = members.length.toLocaleString("tr-TR");
+  if(kpiAssignments) kpiAssignments.textContent = as.length.toLocaleString("tr-TR");
+  if(kpiSubmissions) kpiSubmissions.textContent = subs.length.toLocaleString("tr-TR");
+  if(kpiPending) kpiPending.textContent = pending.toLocaleString("tr-TR");
 }
 
 function renderAssignmentList() {
+  if(!assignmentList) return;
   assignmentList.innerHTML = "";
 
   if (!activeClassId) {
-    emptyAssignments.hidden = false;
+    if(emptyAssignments) emptyAssignments.hidden = false;
     return;
   }
 
@@ -350,11 +608,11 @@ function renderAssignmentList() {
   );
 
   if (!as.length) {
-    emptyAssignments.hidden = false;
+    if(emptyAssignments) emptyAssignments.hidden = false;
     return;
   }
 
-  emptyAssignments.hidden = true;
+  if(emptyAssignments) emptyAssignments.hidden = true;
 
   as.forEach((a) => {
     const el = document.createElement("div");
@@ -375,10 +633,11 @@ function renderAssignmentList() {
 }
 
 function renderLastSubmissions() {
+  if(!lastSubmissions) return;
   lastSubmissions.innerHTML = "";
 
   if (!activeClassId) {
-    emptyLast.hidden = false;
+    if(emptyLast) emptyLast.hidden = false;
     return;
   }
 
@@ -388,19 +647,20 @@ function renderLastSubmissions() {
     .slice(0, 4);
 
   if (!subs.length) {
-    emptyLast.hidden = false;
+    if(emptyLast) emptyLast.hidden = false;
     return;
   }
 
-  emptyLast.hidden = true;
+  if(emptyLast) emptyLast.hidden = true;
 
   subs.forEach((s) => {
+    const fileName = s.originalFileName || s.fileName || "İsimsiz Dosya"; 
     const el = document.createElement("div");
     el.className = "rowcard";
     el.innerHTML = `
       <div class="leftcol">
         <div class="titleline">${s.studentName} • ${s.course}</div>
-        <div class="subline">${s.fileName} • ${fmtDate(s.submittedAt)}</div>
+        <div class="subline">${fileName} • ${fmtDate(s.submittedAt)}</div>
       </div>
       ${pillForStatus(s.status)}
     `;
@@ -413,8 +673,8 @@ function renderLastSubmissions() {
 }
 
 function applySubmissionFilters(list) {
-  const c = (filterCourse.value || "").trim().toLowerCase();
-  const st = filterStatus.value;
+  const c = (filterCourse?.value || "").trim().toLowerCase();
+  const st = filterStatus?.value || "all";
 
   return list.filter((s) => {
     const courseOk = !c || (s.course || "").toLowerCase().includes(c);
@@ -424,10 +684,11 @@ function applySubmissionFilters(list) {
 }
 
 function renderSubmissionList() {
+  if(!submissionList) return;
   submissionList.innerHTML = "";
 
   if (!activeClassId) {
-    emptySubmissions.hidden = false;
+    if(emptySubmissions) emptySubmissions.hidden = false;
     return;
   }
 
@@ -438,19 +699,20 @@ function renderSubmissionList() {
   const subs = applySubmissionFilters(all);
 
   if (!subs.length) {
-    emptySubmissions.hidden = false;
+    if(emptySubmissions) emptySubmissions.hidden = false;
     return;
   }
 
-  emptySubmissions.hidden = true;
+  if(emptySubmissions) emptySubmissions.hidden = true;
 
   subs.forEach((s) => {
+    const fileName = s.originalFileName || s.fileName || "İsimsiz Dosya"; 
     const el = document.createElement("div");
     el.className = "rowcard";
     el.innerHTML = `
       <div class="leftcol">
         <div class="titleline">${s.studentName} • ${s.course}</div>
-        <div class="subline">${s.title} • ${s.fileName}</div>
+        <div class="subline">${s.title} • ${fileName}</div>
         <div class="subline">Teslim: ${fmtDate(s.submittedAt)}</div>
       </div>
       ${pillForStatus(s.status)}
@@ -461,10 +723,11 @@ function renderSubmissionList() {
 }
 
 function renderStudentList() {
+  if(!studentList) return;
   studentList.innerHTML = "";
 
   if (!activeClassId) {
-    emptyStudents.hidden = false;
+    if(emptyStudents) emptyStudents.hidden = false;
     return;
   }
 
@@ -473,11 +736,11 @@ function renderStudentList() {
     .sort((a, b) => (a.studentName || "").localeCompare(b.studentName || ""));
 
   if (!members.length) {
-    emptyStudents.hidden = false;
+    if(emptyStudents) emptyStudents.hidden = false;
     return;
   }
 
-  emptyStudents.hidden = true;
+  if(emptyStudents) emptyStudents.hidden = true;
 
   members.forEach((m) => {
     const el = document.createElement("div");
@@ -497,8 +760,8 @@ function renderStudentList() {
 // ========= DETAIL =========
 function clearSelection() {
   selectedSubmissionId = null;
-  detailBox.hidden = true;
-  detailEmpty.hidden = false;
+  if(detailBox) detailBox.hidden = true;
+  if(detailEmpty) detailEmpty.hidden = false;
   clearAlert(reviewAlert);
 }
 
@@ -510,27 +773,39 @@ function selectSubmission(id) {
 
   selectedSubmissionId = id;
 
-  detailEmpty.hidden = true;
-  detailBox.hidden = false;
+  if(detailEmpty) detailEmpty.hidden = true;
+  if(detailBox) detailBox.hidden = false;
 
-  dTitle.textContent = `${s.course} — ${s.title}`;
-  dSub.textContent = `${s.fileName}`;
-  dStudent.textContent = s.studentName;
-  dCourse.textContent = s.course;
-  dFile.textContent = s.fileName;
-  dDate.textContent = fmtDate(s.submittedAt);
+  const fileName = s.originalFileName || s.fileName || "İsimsiz Dosya";
 
-  if (s.status === "graded") {
-    dStatus.textContent = "Notlandırıldı";
-    dStatus.className = "pill ok";
-  } else {
-    dStatus.textContent = "Bekliyor";
-    dStatus.className = "pill warn";
+  if(dTitle) dTitle.textContent = `${s.course} — ${s.title}`;
+  if(dSub) dSub.textContent = fileName;
+  if(dStudent) dStudent.textContent = s.studentName;
+  if(dCourse) dCourse.textContent = s.course;
+  
+  if (dFile) {
+    if (s.fileUrl) {
+      dFile.innerHTML = `<a href="${API_BASE}${s.fileUrl}" target="_blank" rel="noopener">Dosyayı Görüntüle / İndir</a>`;
+    } else {
+      dFile.textContent = "Dosya bulunamadı";
+    }
+  }
+  
+  if(dDate) dDate.textContent = fmtDate(s.submittedAt);
+
+  if (dStatus) {
+    if (s.status === "graded") {
+      dStatus.textContent = "Notlandırıldı";
+      dStatus.className = "pill ok";
+    } else {
+      dStatus.textContent = "Bekliyor";
+      dStatus.className = "pill warn";
+    }
   }
 
-  gradeInput.value = (s.grade ?? "") === "" ? "" : String(s.grade);
-  statusInput.value = s.status || "pending";
-  feedbackInput.value = s.feedback || "";
+  if(gradeInput) gradeInput.value = (s.grade ?? "") === "" ? "" : String(s.grade);
+  if(statusInput) statusInput.value = s.status || "pending";
+  if(feedbackInput) feedbackInput.value = s.feedback || "";
 
   clearAlert(reviewAlert);
 }
@@ -540,9 +815,9 @@ async function saveReview() {
 
   clearAlert(reviewAlert);
 
-  const gradeRaw = gradeInput.value.trim();
-  const status = statusInput.value;
-  const feedback = feedbackInput.value.trim();
+  const gradeRaw = gradeInput?.value.trim() || "";
+  const status = statusInput?.value || "pending";
+  const feedback = feedbackInput?.value.trim() || "";
 
   let grade = "";
   if (gradeRaw !== "") {
@@ -564,7 +839,6 @@ async function saveReview() {
 
     setAlert(reviewAlert, "ok", "Değerlendirme kaydedildi.");
 
-    // cache refresh
     await refreshAll(true);
     selectSubmission(selectedSubmissionId);
   } catch (err) {
@@ -575,10 +849,12 @@ async function saveReview() {
 
 // ========= MODALS =========
 function openModal(modalEl) {
+  if(!modalEl) return;
   modalEl.classList.add("open");
   modalEl.setAttribute("aria-hidden", "false");
 }
 function closeModal(modalEl) {
+  if(!modalEl) return;
   modalEl.classList.remove("open");
   modalEl.setAttribute("aria-hidden", "true");
 }
@@ -590,6 +866,7 @@ document.querySelectorAll("[data-close]").forEach((btn) => {
   });
 });
 [createClassModal, classInfoModal].forEach((m) => {
+  if(!m) return;
   m.addEventListener("click", (e) => {
     if (e.target === m) closeModal(m);
   });
@@ -598,8 +875,8 @@ document.querySelectorAll("[data-close]").forEach((btn) => {
 // ========= CLASS ACTIONS =========
 openCreateClass?.addEventListener("click", () => {
   clearAlert(classCreateAlert);
-  className.value = "";
-  classDesc.value = "";
+  if(className) className.value = "";
+  if(classDesc) classDesc.value = "";
   openModal(createClassModal);
 });
 
@@ -607,8 +884,8 @@ createClassForm?.addEventListener("submit", async (e) => {
   e.preventDefault();
   clearAlert(classCreateAlert);
 
-  const name = className.value.trim();
-  const desc = classDesc.value.trim();
+  const name = className?.value.trim() || "";
+  const desc = classDesc?.value.trim() || "";
 
   if (!name) {
     setAlert(classCreateAlert, "err", "Sınıf adı zorunlu.");
@@ -620,9 +897,7 @@ createClassForm?.addEventListener("submit", async (e) => {
       method: "POST",
       body: JSON.stringify({
         name,
-        desc,
-        teacherId: me.id,
-        teacherName: me.name || "Öğretmen",
+        desc
       }),
     });
 
@@ -636,7 +911,7 @@ createClassForm?.addEventListener("submit", async (e) => {
 
     await fillClassSelect();
     activeClassId = newClass.id;
-    classSelect.value = activeClassId;
+    if(classSelect) classSelect.value = activeClassId;
     setActiveClassChip();
 
     setTimeout(() => closeModal(createClassModal), 600);
@@ -653,15 +928,16 @@ openClassInfo?.addEventListener("click", () => {
   const cls = classesCache.find((c) => c.id === activeClassId);
   if (!cls) return;
 
-  infoClassName.textContent = cls.name;
-  infoClassCode.textContent = cls.code;
-  infoClassDesc.textContent = cls.desc || "—";
+  if(infoClassName) infoClassName.textContent = cls.name;
+  if(infoClassCode) infoClassCode.textContent = cls.code;
+  if(infoClassDesc) infoClassDesc.textContent = cls.desc || "—";
   clearAlert(copyAlert);
 
   openModal(classInfoModal);
 });
 
 copyClassCode?.addEventListener("click", async () => {
+  if(!infoClassCode) return;
   const code = infoClassCode.textContent.trim();
   try {
     await navigator.clipboard.writeText(code);
@@ -703,16 +979,16 @@ async function onCreateAssignment(course, title, desc, due, alertEl, resetFn) {
 quickAssignmentForm?.addEventListener("submit", (e) => {
   e.preventDefault();
   onCreateAssignment(
-    qaCourse.value,
-    qaTitle.value,
-    qaDesc.value,
-    qaDue.value,
+    qaCourse?.value || "",
+    qaTitle?.value || "",
+    qaDesc?.value || "",
+    qaDue?.value || "",
     qaAlert,
     () => {
-      qaCourse.value = "";
-      qaTitle.value = "";
-      qaDesc.value = "";
-      qaDue.value = "";
+      if(qaCourse) qaCourse.value = "";
+      if(qaTitle) qaTitle.value = "";
+      if(qaDesc) qaDesc.value = "";
+      if(qaDue) qaDue.value = "";
     }
   );
 });
@@ -720,22 +996,22 @@ quickAssignmentForm?.addEventListener("submit", (e) => {
 assignmentForm?.addEventListener("submit", (e) => {
   e.preventDefault();
   onCreateAssignment(
-    aCourse.value,
-    aTitle.value,
-    aDesc.value,
-    aDue.value,
+    aCourse?.value || "",
+    aTitle?.value || "",
+    aDesc?.value || "",
+    aDue?.value || "",
     aAlert,
     () => {
-      aCourse.value = "";
-      aTitle.value = "";
-      aDesc.value = "";
-      aDue.value = "";
+      if(aCourse) aCourse.value = "";
+      if(aTitle) aTitle.value = "";
+      if(aDesc) aDesc.value = "";
+      if(aDue) aDue.value = "";
     }
   );
 });
 
 // ========= EVENTS =========
-who.textContent = me?.name ? `👨‍🏫 ${me.name}` : "👨‍🏫 Öğretmen";
+if(who) who.textContent = me?.name ? `👨‍🏫 ${me.name}` : "👨‍🏫 Öğretmen";
 
 logoutBtn?.addEventListener("click", () => {
   localStorage.removeItem("token");
@@ -748,6 +1024,11 @@ navBtns.forEach((b) => b.addEventListener("click", () => setView(b.dataset.view)
 
 classSelect?.addEventListener("change", async () => {
   activeClassId = classSelect.value || null;
+  selectedChatStudentId = null; 
+  activeGroupId = null; // YENİ
+  if(document.getElementById("groupChatArea")) document.getElementById("groupChatArea").hidden = true;
+  if(document.getElementById("groupSettingsArea")) document.getElementById("groupSettingsArea").hidden = true;
+  if(document.getElementById("groupChatEmpty")) document.getElementById("groupChatEmpty").hidden = false;
   setActiveClassChip();
   clearSelection();
   await refreshAll(true);
@@ -761,6 +1042,87 @@ filterStatus?.addEventListener("change", () => renderSubmissionList());
 clearSelectionBtn?.addEventListener("click", clearSelection);
 saveReviewBtn?.addEventListener("click", saveReview);
 
+// Chat & Bildirim & Gruplar UI Eventleri
+document.addEventListener("DOMContentLoaded", () => {
+  const notifBtn = document.getElementById('notifBtn');
+  const notifDropdown = document.getElementById('notifDropdown');
+  if(notifBtn && notifDropdown) {
+    notifBtn.addEventListener('click', async () => { 
+      notifDropdown.hidden = !notifDropdown.hidden; 
+      
+      // Bildirim kutusu AÇILDIĞINDA bildirimleri okundu say ve sayıyı gizle
+      if (!notifDropdown.hidden) {
+        try {
+          await apiFetch("/api/notifications/read", { method: "POST" });
+          const badge = document.getElementById("notifBadge");
+          if(badge) badge.hidden = true;
+        } catch(e) {}
+      }
+    });
+  }
+
+  const chatBtn = document.getElementById('chatBtn');
+  const chatPanel = document.getElementById('chatPanel');
+  const closeChat = document.getElementById('closeChat');
+  if(chatBtn) chatBtn.addEventListener('click', () => { 
+    if(chatPanel) chatPanel.hidden = false; 
+    loadChat(); 
+  });
+  if(closeChat) closeChat.addEventListener('click', () => { if(chatPanel) chatPanel.hidden = true; });
+
+  const chatInput = document.getElementById("privateChatInput"); 
+  const sendChatBtn = document.getElementById("sendPrivateChatBtn"); 
+  if(chatInput) chatInput.addEventListener("keypress", (e) => { if(e.key === 'Enter') sendChat(); });
+  if(sendChatBtn) sendChatBtn.addEventListener("click", sendChat);
+
+  // Öğrenci seçimi değiştiğinde
+  const chatStudentSelect = document.getElementById("chatStudentSelect");
+  if(chatStudentSelect) {
+    chatStudentSelect.addEventListener("change", (e) => {
+      selectedChatStudentId = e.target.value;
+      loadChat(); 
+    });
+  }
+
+  // YENİ: GRUP EVENTLERİ (Sağ Ayar Menüsü ve Mesajlaşma)
+  document.getElementById("openGroupSettingsBtn")?.addEventListener("click", () => {
+    document.getElementById("groupSettingsArea").hidden = false;
+    populateGroupSettings();
+  });
+  document.getElementById("closeGroupSettingsBtn")?.addEventListener("click", () => {
+    document.getElementById("groupSettingsArea").hidden = true;
+  });
+
+  document.getElementById("saveGroupNameBtn")?.addEventListener("click", async () => {
+    const name = document.getElementById("editGroupName").value.trim();
+    const alertEl = document.getElementById("groupSettingsAlert");
+    if(!name) return setAlert(alertEl, "err", "Lütfen bir isim girin.");
+    try {
+      await apiFetch(`/api/groups/${activeGroupId}/name`, { method: "PUT", body: JSON.stringify({name}) });
+      setAlert(alertEl, "ok", "Grup ismi güncellendi!");
+      const titleEl = document.getElementById("activeGroupName");
+      if(titleEl) titleEl.textContent = name;
+      loadGroups(); setTimeout(populateGroupSettings, 500);
+    } catch(e) { setAlert(alertEl, "err", "İsim değiştirilemedi."); }
+  });
+
+  document.getElementById("addMembersBtn")?.addEventListener("click", async () => {
+    const alertEl = document.getElementById("groupSettingsAlert");
+    const cbs = document.querySelectorAll("#addMembersList input:checked");
+    const memberIds = Array.from(cbs).map(c => c.value);
+    if(memberIds.length === 0) return setAlert(alertEl, "err", "Lütfen eklenecek öğrencileri seçin.");
+    
+    try {
+      await apiFetch(`/api/groups/${activeGroupId}/members`, { method: "POST", body: JSON.stringify({memberIds}) });
+      setAlert(alertEl, "ok", "Öğrenciler başarıyla gruba eklendi!");
+      loadGroups(); setTimeout(populateGroupSettings, 500);
+    } catch(e) { setAlert(alertEl, "err", "Öğrenci eklenemedi."); }
+  });
+
+  document.getElementById("groupChatInput")?.addEventListener("keypress", (e) => { if(e.key === 'Enter') sendGroupMessage(); });
+  document.getElementById("sendGroupMsgBtn")?.addEventListener("click", sendGroupMessage);
+});
+
 // ========= REFRESH =========
 async function refreshAll(fetchFresh = false) {
   if (!activeClassId) {
@@ -773,13 +1135,13 @@ async function refreshAll(fetchFresh = false) {
     renderSubmissionList();
     renderLastSubmissions();
     renderStudentList();
+    fillChatStudents();
     return;
   }
 
   setActiveClassChip();
 
   if (fetchFresh) {
-    // paralel çek
     const [members, assignments, submissions] = await Promise.allSettled([
       getMembersByClass(activeClassId),
       getAssignmentsByClass(activeClassId),
@@ -796,6 +1158,9 @@ async function refreshAll(fetchFresh = false) {
   renderSubmissionList();
   renderLastSubmissions();
   renderStudentList();
+  fillChatStudents(); 
+  loadChat(); 
+  loadGroups(); // YENİ: Sınıf yenilendiğinde grupları da yenile
 }
 
 // ========= BOOT =========
@@ -810,6 +1175,21 @@ async function refreshAll(fetchFresh = false) {
   setView("dashboard");
   clearSelection();
 
-  // İlk yüklemede aktif class varsa dataları çek
-  await refreshAll(true);
+  if(activeClassId) {
+    await refreshAll(true);
+  }
+  
+  loadNotifications();
+
+  // Arka planda 5 saniyede bir yeni mesaj ve bildirimleri çek
+  setInterval(() => {
+    if (activeClassId && document.getElementById('chatPanel') && !document.getElementById('chatPanel').hidden) {
+      loadChat(); 
+    }
+    // YENİ: Grup sekmesi açıksa mesajları güncelle
+    if (activeGroupId && document.getElementById('groupChatArea') && !document.getElementById('groupChatArea').hidden) {
+      loadGroupMessages();
+    }
+    loadNotifications();
+  }, 5000);
 })();

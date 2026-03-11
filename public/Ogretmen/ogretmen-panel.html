@@ -13,7 +13,6 @@
     <span class="blob b3"></span>
   </div>
 
-  <!-- TOP BAR -->
   <header class="topbar">
     <div class="wrap topbar-inner">
       <a class="brand" href="../Main/main.html">
@@ -22,27 +21,38 @@
       </a>
 
       <div class="top-actions">
+        
+        <div class="notif-wrap">
+          <button class="icon-btn notif-btn" id="notifBtn" aria-label="Bildirimler">
+            🔔 <span class="badge" id="notifBadge" hidden>0</span>
+          </button>
+          
+          <div class="notif-dropdown" id="notifDropdown" hidden>
+            <div class="notif-header">
+              <span>Bildirimler</span>
+            </div>
+            <div class="notif-list" id="notifList">
+              <div class="notif-item">Henüz bildirim yok.</div>
+            </div>
+          </div>
+        </div>
+
         <div class="who" id="who">👨‍🏫 Öğretmen</div>
         <button class="btn ghost" id="logoutBtn" type="button">Çıkış</button>
       </div>
     </div>
   </header>
 
-  <!-- APP LAYOUT -->
   <main class="wrap app">
-    <!-- SIDEBAR -->
     <aside class="sidebar">
       <div class="side-card">
         <div class="side-title">Sınıflar</div>
 
         <div class="class-picker">
           <label class="lab" for="classSelect">Sınıf Seç</label>
-
-          <!-- ✅ default option -->
           <select id="classSelect">
             <option value="">Yükleniyor...</option>
           </select>
-
           <div class="hint" id="classHint">Sınıf seçince her şey ona göre filtrelenir.</div>
         </div>
 
@@ -58,6 +68,7 @@
           <button class="navbtn" data-view="assignments" type="button">📌 Ödevler</button>
           <button class="navbtn" data-view="submissions" type="button">📥 Teslimler</button>
           <button class="navbtn" data-view="students" type="button">👥 Öğrenciler</button>
+          <button class="navbtn" data-view="groups" type="button">💬 Gruplar</button>
         </div>
 
         <div class="mini">
@@ -69,9 +80,7 @@
       </div>
     </aside>
 
-    <!-- CONTENT -->
     <section class="content">
-      <!-- DASHBOARD -->
       <section class="view active" id="view-dashboard">
         <div class="page-head">
           <div>
@@ -144,7 +153,6 @@
         </div>
       </section>
 
-      <!-- ASSIGNMENTS -->
       <section class="view" id="view-assignments">
         <div class="page-head">
           <div>
@@ -196,7 +204,6 @@
         </div>
       </section>
 
-      <!-- SUBMISSIONS -->
       <section class="view" id="view-submissions">
         <div class="page-head">
           <div>
@@ -294,7 +301,6 @@
         </div>
       </section>
 
-      <!-- STUDENTS -->
       <section class="view" id="view-students">
         <div class="page-head">
           <div>
@@ -312,10 +318,97 @@
           <div class="empty" id="emptyStudents" hidden>Bu sınıfta henüz öğrenci yok.</div>
         </div>
       </section>
+
+      <section class="view" id="view-groups">
+        <div class="page-head">
+          <div>
+            <h1>💬 Sınıf Grupları</h1>
+            <p class="muted">Öğrencilerin kurduğu çalışma gruplarını yönet ve mesajlaş.</p>
+          </div>
+        </div>
+        
+        <div class="chat-app">
+          <div class="chat-sidebar">
+            <div style="padding: 14px; font-weight: 900; border-bottom: 1px solid var(--line);">Öğrenci Grupları</div>
+            <div class="chat-list" id="groupList"></div>
+          </div>
+
+          <div class="chat-main" id="groupChatArea" hidden>
+            <div class="chat-header" style="display:flex; justify-content:space-between; align-items:center;">
+              <span id="activeGroupName">Grup Adı</span>
+              <button class="btn ghost" id="openGroupSettingsBtn" title="Grubu Yönet">⚙️ Ayarlar</button>
+            </div>
+            <div class="chat-messages" id="groupChatBody"></div>
+            <div class="chat-input-area">
+              <input type="text" id="groupChatInput" placeholder="Gruba mesaj gönder..." />
+              <button class="btn primary" id="sendGroupMsgBtn">Gönder</button>
+            </div>
+          </div>
+
+          <div class="chat-settings" id="groupSettingsArea" hidden>
+            <div style="padding: 16px; font-weight: 900; border-bottom: 1px solid var(--line); display:flex; justify-content:space-between; align-items:center; font-size:16px;">
+              ⚙️ Grubu Yönet
+              <button class="icon-btn" id="closeGroupSettingsBtn">✕</button>
+            </div>
+            <div style="padding:16px; overflow-y:auto; flex:1; display:flex; flex-direction:column; gap:20px;">
+              
+              <div class="alert" id="groupSettingsAlert" hidden></div>
+
+              <div class="field">
+                <label>Grup İsmini Değiştir</label>
+                <div style="display:flex; gap:8px;">
+                  <input type="text" id="editGroupName" placeholder="Yeni İsim" />
+                  <button class="btn primary" id="saveGroupNameBtn">Kaydet</button>
+                </div>
+              </div>
+
+              <div class="field">
+                <label>Gruba Öğrenci Ekle</label>
+                <div id="addMembersList" class="checkbox-container"></div>
+                <button class="btn ghost block" id="addMembersBtn" style="margin-top:10px;">Seçilenleri Ekle</button>
+              </div>
+
+              <div class="field">
+                <label>Grup Üyeleri</label>
+                <div id="groupMembersList" style="display:flex; flex-direction:column; gap:8px;"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="chat-main-empty" id="groupChatEmpty">
+            Okumak ve yönetmek için soldan bir grup seçin.
+          </div>
+        </div>
+      </section>
+
     </section>
   </main>
 
-  <!-- MODAL: Create Class -->
+  <div class="floating-widgets">
+    <div class="widget-panel" id="chatPanel" hidden>
+      <div class="widget-head chat-head">
+        <div class="chat-head-top" style="display:flex; justify-content:space-between; align-items:center; width:100%;">
+          <div class="w-title">💬 Birebir Sohbet</div>
+          <button class="icon-btn w-close" id="closeChat">✕</button>
+        </div>
+        <select id="chatStudentSelect" class="chat-student-select" style="width:100%; height:32px; font-size:12px; border-radius:8px; border:none; padding:0 10px; margin-top:10px; outline:none; color:#333; cursor:pointer;">
+          <option value="">-- Öğrenci Seçin --</option>
+        </select>
+      </div>
+      <div class="widget-body" id="privateChatBody">
+        <div style="text-align:center; color:#64748b; font-size:12px; margin-top:20px;">Sohbet etmek için yukarıdan bir öğrenci seçin...</div>
+      </div>
+      <div class="widget-footer">
+        <input type="text" placeholder="Bir mesaj yazın..." id="privateChatInput" />
+        <button class="btn primary" id="sendPrivateChatBtn">Gönder</button>
+      </div>
+    </div>
+
+    <div class="widget-triggers">
+      <button class="trigger-btn chat-trigger" id="chatBtn" title="Gelen Kutusu">💬 <span class="badge" id="chatBadge" hidden>0</span></button>
+    </div>
+  </div>
+
   <div class="modal" id="createClassModal" aria-hidden="true">
     <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="createClassTitle">
       <div class="modal-top">
@@ -340,7 +433,6 @@
     </div>
   </div>
 
-  <!-- MODAL: Class Info -->
   <div class="modal" id="classInfoModal" aria-hidden="true">
     <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="classInfoTitle">
       <div class="modal-top">
@@ -368,7 +460,6 @@
     </div>
   </div>
 
-  
   <script src="ogretmen.js" defer></script>
 </body>
 </html>

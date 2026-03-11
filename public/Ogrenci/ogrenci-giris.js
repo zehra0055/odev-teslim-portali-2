@@ -1,19 +1,11 @@
 "use strict";
 console.count("PAGE JS INIT");
 
-// ==========================
-//  Öğrenci Auth + Password Reset (OTP)
-//  - POST /api/auth/register
-//  - POST /api/auth/login
-//  - POST /api/auth/forgot
-//  - POST /api/auth/reset/verify
-//  - POST /api/auth/reset
-//  - fetch: relative URL
-//  - input: id üzerinden okur
-// ==========================
-
 const ROLE = "student";
 const PANEL_URL = "/Ogrenci/ogrenci-panel.html";
+
+// Sunucu URL'si: Kendi bilgisayarında 3000 portunda çalışıyorsa bu şekilde kalmalı.
+const API_BASE = "http://localhost:3000"; 
 
 // ---- DOM ----
 const tabs = document.querySelectorAll(".tab");
@@ -26,37 +18,11 @@ const loginSubmit = document.getElementById("loginSubmit");
 const regSubmit = document.getElementById("regSubmit");
 const rememberMe = document.getElementById("rememberMe");
 
-const modal = document.getElementById("modal");
-const forgotBtn = document.getElementById("forgotBtn");
-const closeModal = document.getElementById("closeModal");
-
 // strength UI
 const strengthBar = document.getElementById("strengthBar");
 const strengthText = document.getElementById("strengthText");
 const regPasswordInput = document.getElementById("regPassword");
 const terms = document.getElementById("terms");
-
-// ===== Forgot/Reset Modal DOM (3 STEP) =====
-const forgotForm = document.getElementById("forgotForm");
-const forgotEmail = document.getElementById("forgotEmail");
-const forgotMsg = document.getElementById("forgotMsg");
-const forgotSubmit = document.getElementById("forgotSubmit");
-const forgotAlert = document.getElementById("forgotAlert");
-
-const codeForm = document.getElementById("codeForm");
-const resetCode = document.getElementById("resetCode");
-const codeMsg = document.getElementById("codeMsg");
-const codeSubmit = document.getElementById("codeSubmit");
-const codeAlert = document.getElementById("codeAlert");
-const resendCodeBtn = document.getElementById("resendCodeBtn");
-
-const resetForm = document.getElementById("resetForm");
-const newPassword = document.getElementById("newPassword");
-const resetMsg = document.getElementById("resetMsg");
-const resetSubmit = document.getElementById("resetSubmit");
-const resetAlert = document.getElementById("resetAlert");
-
-const backToLoginBtn = document.getElementById("backToLoginBtn");
 
 let busy = false;
 
@@ -64,11 +30,7 @@ console.log("ogrenci-giris.js yüklendi ✅");
 
 // ---- helpers ----
 function setAlert(el, type, text) {
-  if (!el) {
-    console.warn("Alert elementi yok:", type, text);
-    alert(text);
-    return;
-  }
+  if (!el) return;
   el.hidden = false;
   el.className = "alert " + type;
   el.textContent = text;
@@ -110,10 +72,6 @@ async function safeJson(res) {
   try { return await res.json(); }
   catch { return {}; }
 }
-function setInlineMsg(el, text) {
-  if (!el) return;
-  el.textContent = text || "";
-}
 
 // ---- UI EVENTS (TAB / JUMP) ----
 document.addEventListener("click", (e) => {
@@ -124,7 +82,61 @@ document.addEventListener("click", (e) => {
   if (jumpBtn) return setTab(jumpBtn.dataset.jump);
 });
 
-// ---- password toggle (👁️) ----
+// ---- password toggle ----
+// ---- password strength (Görsel ve İşlevsel Düzeltme) ----
+function calcStrength(pw) {
+  let score = 0;
+  if (!pw) return { label: "—", pct: 0, color: "transparent" };
+
+  if (pw.length >= 6) score++;
+  if (pw.length >= 10) score++;
+
+  if (/[a-z]/.test(pw)) score++;
+  if (/[A-Z]/.test(pw)) score++;
+  if (/[0-9]/.test(pw)) score++;
+  if (/[^A-Za-z0-9]/.test(pw)) score++;
+
+  // Aynı karakterin tekrarını cezalandır (örn: aaaaaa)
+  if (/^(.)\1+$/.test(pw)) score = Math.max(0, score - 2);
+
+  const pct = Math.min(100, Math.round((score / 6) * 100));
+
+  let label = "Çok Zayıf";
+  let color = "#ff4d4f"; // Kırmızı
+  
+  if (score >= 5) { label = "Çok Güçlü"; color = "#52c41a"; } // Koyu Yeşil
+  else if (score >= 4) { label = "Güçlü"; color = "#95de64"; } // Açık Yeşil
+  else if (score >= 3) { label = "Orta"; color = "#faad14"; } // Turuncu
+  else if (score >= 2) { label = "Zayıf"; color = "#ff7a45"; } // Koyu Turuncu
+
+  return { label, pct, color };
+}
+
+function updateStrengthUI(pw) {
+  if (!strengthBar || !strengthText) return;
+  const { label, pct, color } = calcStrength(pw);
+  
+  // Barın görsel ayarları
+  strengthBar.style.width = pct + "%";
+  strengthBar.style.backgroundColor = color;
+  strengthBar.style.height = "6px"; 
+  strengthBar.style.borderRadius = "4px";
+  strengthBar.style.transition = "width 0.3s ease, background-color 0.3s ease";
+  
+  // Metnin görsel ayarları
+  strengthText.textContent = `Şifre gücü: ${pw ? label : "—"}`;
+  strengthText.style.color = pw ? color : "#666";
+  strengthText.style.fontWeight = "bold";
+  strengthText.style.fontSize = "0.9em";
+  strengthText.style.marginTop = "5px";
+}
+
+// Şifre kutusuna her harf girildiğinde tetikle
+if (regPasswordInput) {
+  updateStrengthUI(regPasswordInput.value);
+  regPasswordInput.addEventListener("input", (e) => updateStrengthUI(e.target.value));
+}
+
 document.addEventListener("click", (e) => {
   const btn = e.target.closest("[data-toggle-password]");
   if (!btn) return;
@@ -140,43 +152,7 @@ document.addEventListener("click", (e) => {
   btn.setAttribute("aria-label", isHidden ? "Şifreyi gizle" : "Şifreyi göster");
 });
 
-// ---- password strength ----
-function calcStrength(pw) {
-  let score = 0;
-  if (!pw) return { label: "—", pct: 0 };
-
-  if (pw.length >= 6) score++;
-  if (pw.length >= 10) score++;
-
-  if (/[a-z]/.test(pw)) score++;
-  if (/[A-Z]/.test(pw)) score++;
-  if (/[0-9]/.test(pw)) score++;
-  if (/[^A-Za-z0-9]/.test(pw)) score++;
-
-  if (/^(.)\1+$/.test(pw)) score = Math.max(0, score - 2);
-
-  const pct = Math.min(100, Math.round((score / 6) * 100));
-
-  let label = "Çok zayıf";
-  if (score >= 5) label = "Çok güçlü";
-  else if (score >= 4) label = "Güçlü";
-  else if (score >= 3) label = "Orta";
-  else if (score >= 2) label = "Zayıf";
-
-  return { label, pct };
-}
-function updateStrengthUI(pw) {
-  if (!strengthBar || !strengthText) return;
-  const { label, pct } = calcStrength(pw);
-  strengthBar.style.width = pct + "%";
-  strengthText.textContent = `Şifre gücü: ${pw ? label : "—"}`;
-}
-if (regPasswordInput) {
-  updateStrengthUI(regPasswordInput.value);
-  regPasswordInput.addEventListener("input", () => updateStrengthUI(regPasswordInput.value));
-}
-
-// ---- auto redirect (SAFE) ----
+// ---- auto redirect ----
 (() => {
   if (location.search.includes("noredirect=1")) return;
 
@@ -211,14 +187,14 @@ loginForm?.addEventListener("submit", async (e) => {
 
     if (!email || !password) throw new Error("E-posta ve şifre zorunlu.");
 
-    const res = await fetch(`/api/auth/login`, {
+    // API_BASE EKLENDİ
+    const res = await fetch(`${API_BASE}/api/auth/login`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ role: ROLE, email, password }),
     });
 
     const data = await safeJson(res);
-    console.log("LOGIN RES:", res.status, data);
 
     if (!res.ok || !data.ok) {
       throw new Error(data.message || `Giriş başarısız (HTTP ${res.status})`);
@@ -229,10 +205,17 @@ loginForm?.addEventListener("submit", async (e) => {
     localStorage.setItem("user", JSON.stringify(data.user || {}));
     localStorage.setItem("remember", rememberMe?.checked ? "1" : "0");
 
-    window.location.replace(PANEL_URL);
+    // Localhost veya Live Server kullanımında rotayı kök dizine göre ayarlamak daha güvenlidir
+    window.location.href = API_BASE ? `${API_BASE}${PANEL_URL}` : PANEL_URL;
+
   } catch (err) {
     console.error("LOGIN ERR:", err);
-    setAlert(loginAlert, "err", err?.message || "Giriş başarısız");
+    // TypeError: Failed to fetch hatasını daha kullanıcı dostu bir mesaja çevirelim
+    if (err.message.includes("Failed to fetch")) {
+      setAlert(loginAlert, "err", "Sunucuya bağlanılamadı. Node.js sunucusunun (localhost:3000) açık olduğundan emin olun.");
+    } else {
+      setAlert(loginAlert, "err", err?.message || "Giriş başarısız");
+    }
   } finally {
     busy = false;
     setLoading(loginSubmit, false);
@@ -268,27 +251,34 @@ registerForm?.addEventListener("submit", async (e) => {
       throw new Error("Lütfen tüm alanları doldur (Ad, Soyad, Email, Şifre).");
     }
 
-    const res = await fetch(`/api/auth/register`, {
+    // API_BASE EKLENDİ
+    const res = await fetch(`${API_BASE}/api/auth/register`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ role: ROLE, name, email, password }),
     });
 
     const data = await safeJson(res);
-    console.log("REGISTER RES:", res.status, data);
 
     if (!res.ok || !data.ok) {
       throw new Error(data.message || `Kayıt başarısız (HTTP ${res.status})`);
     }
 
     setAlert(regAlert, "ok", "Kayıt başarılı. Giriş yapabilirsin.");
+    
+    // Formu temizle ve Login sekmesine geç
+    registerForm.reset();
     setTab("login");
   } catch (err) {
     console.error("REGISTER ERR:", err);
-    setAlert(regAlert, "err", err?.message || "Kayıt başarısız");
+    // TypeError: Failed to fetch hatasını daha anlaşılır yapalım
+    if (err.message.includes("Failed to fetch")) {
+      setAlert(regAlert, "err", "Sunucuya bağlanılamadı. Node.js sunucusunun (localhost:3000) açık olduğundan emin olun.");
+    } else {
+      setAlert(regAlert, "err", err?.message || "Kayıt başarısız");
+    }
   } finally {
     busy = false;
     setLoading(regSubmit, false);
   }
 });
-
