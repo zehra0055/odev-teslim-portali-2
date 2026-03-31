@@ -106,7 +106,9 @@ const views = {
   assignments: document.getElementById("view-assignments"),
   submissions: document.getElementById("view-submissions"),
   students: document.getElementById("view-students"),
-  groups: document.getElementById("view-groups") // YENİ EKLENDİ
+  groups: document.getElementById("view-groups"), // YENİ EKLENDİ
+  graphs: document.getElementById("view-graphs"),
+  live: document.getElementById("view-live")
 };
 
 const classSelect = document.getElementById("classSelect");
@@ -310,7 +312,17 @@ async function loadGroupMessages() {
     }
     data.messages.forEach(m => {
       const isMine = m.senderId === me.id;
-      body.innerHTML += `<div class="w-msg ${isMine ? 'mine' : 'others'}"><span class="w-sender">${isMine ? '' : m.senderName}</span><div class="w-bubble">${m.text}</div></div>`;
+      let bubbleContent = m.text ? `<div>${m.text}</div>` : "";
+      
+      if(m.fileUrl) {
+        if(m.mimeType && m.mimeType.startsWith("image/")) {
+          bubbleContent += `<img src="${API_BASE}${m.fileUrl}" alt="Resim" style="max-width:200px; border-radius:8px; display:block; margin-top:5px; cursor:pointer;" onclick="window.open('${API_BASE}${m.fileUrl}', '_blank')" />`;
+        } else {
+          bubbleContent += `<a href="${API_BASE}${m.fileUrl}" target="_blank" style="display:inline-block; margin-top:5px; background:rgba(0,0,0,0.1); padding:4px 8px; border-radius:4px; text-decoration:none; color:inherit; font-weight:bold; font-size:12px;">📎 ${m.originalFileName || 'Dosya İndir'}</a>`;
+        }
+      }
+
+      body.innerHTML += `<div class="w-msg ${isMine ? 'mine' : 'others'}"><span class="w-sender">${isMine ? '' : m.senderName}</span><div class="w-bubble">${bubbleContent}</div></div>`;
     });
     body.scrollTop = body.scrollHeight;
   } catch(e) {}
@@ -318,23 +330,62 @@ async function loadGroupMessages() {
 
 async function sendGroupMessage() {
   const inp = document.getElementById("groupChatInput");
-  if(!inp || !inp.value.trim() || !activeGroupId) return;
-  const text = inp.value.trim(); inp.value = "";
+  const fileInput = document.getElementById("groupChatFileInput");
+  const file = fileInput ? fileInput.files[0] : null;
+
+  if(!activeGroupId) return;
+  if((!inp || !inp.value.trim()) && !file) return;
+
+  const text = inp ? inp.value.trim() : "";
+  if(inp) inp.value = "";
+  
+  if(fileInput) fileInput.value = "";
+  const preview = document.getElementById("groupChatFilePreview");
+  if(preview) preview.hidden = true;
+
   const body = document.getElementById("groupChatBody");
   if(body && body.innerHTML.includes("henüz mesaj yok")) body.innerHTML = "";
   if(body) {
-    body.innerHTML += `<div class="w-msg mine"><div class="w-bubble">${text}</div></div>`;
+    let tempTxt = text;
+    if(file) tempTxt += ` <i><br>(📎 ${file.name} yükleniyor...)</i>`;
+    body.innerHTML += `<div class="w-msg mine"><div class="w-bubble">${tempTxt}</div></div>`;
     body.scrollTop = body.scrollHeight;
   }
 
   try {
-    await apiFetch("/api/groups/message", { method: "POST", body: JSON.stringify({ groupId: activeGroupId, text }) });
+    const btn = document.getElementById("sendGroupMsgBtn");
+    if(btn) { btn.disabled = true; btn.textContent = "..."; }
+
+    const fd = new FormData();
+    fd.append("groupId", activeGroupId);
+    fd.append("text", text);
+    if(file) fd.append("file", file);
+
+    const token = localStorage.getItem("token");
+    const res = await fetch("/api/groups/message", {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${token}` },
+      body: fd
+    });
+    if(!res.ok) throw new Error("Grup mesajı gönderilemedi");
+    
+    if(btn) { btn.disabled = false; btn.textContent = "Gönder"; }
     loadGroupMessages();
-  } catch(e) {}
+  } catch(e) {
+    const btn = document.getElementById("sendGroupMsgBtn");
+    if(btn) { btn.disabled = false; btn.textContent = "Gönder"; }
+  }
 }
 
 // Grup Ayarları (Sağ Menü) Verilerini Doldurma
 async function populateGroupSettings() {
+  if (activeClassId) {
+    try {
+      const data = await apiFetch(`/api/classes/members?classId=${activeClassId}`);
+      if (data && data.members) membersCache = data.members;
+    } catch(e) {}
+  }
+
   const group = groupsCache.find(g => g.id === activeGroupId);
   if(!group) return;
   
@@ -351,9 +402,18 @@ async function populateGroupSettings() {
       const student = membersCache.find(cm => cm.studentId === mId);
       const name = student ? student.studentName : (mId === me.id ? "Öğretmen (Sen)" : "Bilinmeyen Üye");
       
+      let statusPill = "";
+      if (mId !== me.id) {
+        statusPill = `<span class="pill offline-status">Çevrimdışı</span>`;
+        if (student && student.status === "active") statusPill = `<span class="pill active-status">Aktif</span>`;
+        else if (student && student.status === "idle") statusPill = `<span class="pill idle-status">Pasif</span>`;
+      } else {
+        statusPill = `<span class="pill active-status">Aktif</span>`;
+      }
+      
       const div = document.createElement("div");
       div.className = "member-item";
-      div.innerHTML = `<span>👤 ${name}</span> <button class="btn" style="background:#ef4444; color:white; padding:4px 10px; height:28px; font-size:12px;" title="Gruptan At">At</button>`;
+      div.innerHTML = `<span style="display:flex; align-items:center; gap:8px;">👤 ${name} ${statusPill}</span> <button class="btn" style="background:#ef4444; color:white; padding:4px 10px; height:28px; font-size:12px;" title="Gruptan At">At</button>`;
       
       div.querySelector("button").onclick = async () => {
         if(!confirm(`${name} isimli kullanıcıyı gruptan atmak istediğine emin misin?`)) return;
@@ -378,7 +438,10 @@ async function populateGroupSettings() {
       addList.innerHTML = "<div style='color:#888; font-size:13px; font-weight:bold;'>Sınıftaki tüm öğrenciler bu grupta.</div>";
     } else {
       nonMembers.forEach(m => {
-        addList.innerHTML += `<label class="checkbox-row"><input type="checkbox" value="${m.studentId}"> ${m.studentName}</label>`;
+        let statusPill = `<span class="pill offline-status" style="font-size:10px; padding:2px 6px;">Çevrimdışı</span>`;
+        if (m.status === "active") statusPill = `<span class="pill active-status" style="font-size:10px; padding:2px 6px;">Aktif</span>`;
+        else if (m.status === "idle") statusPill = `<span class="pill idle-status" style="font-size:10px; padding:2px 6px;">Pasif</span>`;
+        addList.innerHTML += `<label class="checkbox-row" style="display:flex; justify-content:space-between; width:100%;"><span style="display:flex; align-items:center; gap:8px;"><input type="checkbox" value="${m.studentId}"> ${m.studentName}</span> ${statusPill}</label>`;
       });
     }
   }
@@ -399,20 +462,36 @@ async function loadNotifications() {
     }
     
     if(badge) { 
-      badge.textContent = data.notifications.length; 
-      badge.hidden = false; 
+      if(data.unreadCount > 0) {
+        badge.textContent = data.unreadCount;
+        badge.hidden = false; 
+      } else {
+        badge.hidden = true;
+      }
     }
     
     list.innerHTML = "";
     data.notifications.reverse().forEach(n => {
       const div = document.createElement("div");
-      div.className = "notif-item unread";
+      div.className = "notif-item unread"; 
+      div.style.cursor = "pointer";
+      div.title = "Kapatmak için tıkla";
       
       let icon = "🔔";
       if(n.text.includes("mesaj")) icon = "💬";
       if(n.text.includes("teslim")) icon = "📥";
 
-      div.innerHTML = `<div class="notif-icon">${icon}</div><div class="notif-content"><div class="notif-text">${n.text}</div><div class="notif-time">${fmtDate(n.createdAt)}</div></div>`;
+      div.innerHTML = `<div class="notif-icon">${icon}</div><div class="notif-content"><div class="notif-text">${n.text}</div><div class="notif-time" style="color:#64748b;">${fmtDate(n.createdAt)} • <b style="color:#ef4444;">Gizle</b></div></div>`;
+      
+      div.addEventListener("click", async () => {
+        div.style.opacity = "0.5";
+        try {
+          await apiFetch(`/api/notifications/dismiss/${n.id}`, { method: "POST" });
+          div.remove();
+          loadNotifications(); // Badge'i güncellemek için
+        } catch(e) {}
+      });
+
       list.appendChild(div);
     });
   } catch(e) {
@@ -428,7 +507,10 @@ function fillChatStudents() {
   
   if (membersCache && membersCache.length > 0) {
     membersCache.forEach(m => {
-      sel.innerHTML += `<option value="${m.studentId}">${m.studentName}</option>`;
+      let statusText = "Çevrimdışı";
+      if (m.status === "active") statusText = "Aktif";
+      else if (m.status === "idle") statusText = "Pasif";
+      sel.innerHTML += `<option value="${m.studentId}">${m.studentName} [${statusText}]</option>`;
     });
   }
   
@@ -746,15 +828,24 @@ function renderStudentList() {
     const el = document.createElement("div");
     el.className = "rowcard";
     el.style.cursor = "default";
+    
+    let statusPill = `<span class="pill offline-status">Çevrimdışı</span>`;
+    if (m.status === "active") statusPill = `<span class="pill active-status">Aktif</span>`;
+    else if (m.status === "idle") statusPill = `<span class="pill idle-status">Pasif</span>`;
+
     el.innerHTML = `
       <div class="leftcol">
         <div class="titleline">${m.studentName}</div>
         <div class="subline">Katılım: ${fmtDate(m.joinedAt)}</div>
       </div>
-      <span class="pill">Üye</span>
+      <div>${statusPill} <span class="pill">Üye</span></div>
     `;
     studentList.appendChild(el);
   });
+
+  if (typeof updateGraphUI === "function") {
+    updateGraphUI();
+  }
 }
 
 // ========= DETAIL =========
@@ -1028,9 +1119,14 @@ classSelect?.addEventListener("change", async () => {
   activeGroupId = null; // YENİ
   if(document.getElementById("groupChatArea")) document.getElementById("groupChatArea").hidden = true;
   if(document.getElementById("groupSettingsArea")) document.getElementById("groupSettingsArea").hidden = true;
-  if(document.getElementById("groupChatEmpty")) document.getElementById("groupChatEmpty").hidden = false;
+  const cName = classSelect.options[classSelect.selectedIndex].text;
+  if(document.getElementById("studClassChip")) document.getElementById("studClassChip").innerText = "Sınıf: " + cName;
+  if(document.getElementById("liveClassChip")) document.getElementById("liveClassChip").innerText = "Sınıf: " + cName;
   setActiveClassChip();
   clearSelection();
+  if (typeof graphIncludedStudentIds !== "undefined") {
+    graphIncludedStudentIds.clear();
+  }
   await refreshAll(true);
 });
 
@@ -1047,17 +1143,8 @@ document.addEventListener("DOMContentLoaded", () => {
   const notifBtn = document.getElementById('notifBtn');
   const notifDropdown = document.getElementById('notifDropdown');
   if(notifBtn && notifDropdown) {
-    notifBtn.addEventListener('click', async () => { 
+    notifBtn.addEventListener('click', () => { 
       notifDropdown.hidden = !notifDropdown.hidden; 
-      
-      // Bildirim kutusu AÇILDIĞINDA bildirimleri okundu say ve sayıyı gizle
-      if (!notifDropdown.hidden) {
-        try {
-          await apiFetch("/api/notifications/read", { method: "POST" });
-          const badge = document.getElementById("notifBadge");
-          if(badge) badge.hidden = true;
-        } catch(e) {}
-      }
     });
   }
 
@@ -1106,21 +1193,97 @@ document.addEventListener("DOMContentLoaded", () => {
     } catch(e) { setAlert(alertEl, "err", "İsim değiştirilemedi."); }
   });
 
+  document.getElementById("openAddMembersModal")?.addEventListener("click", () => {
+    clearAlert(document.getElementById("addMembersAlert"));
+    openModal(document.getElementById("addMembersModal"));
+  });
+
   document.getElementById("addMembersBtn")?.addEventListener("click", async () => {
-    const alertEl = document.getElementById("groupSettingsAlert");
+    const alertEl = document.getElementById("addMembersAlert");
     const cbs = document.querySelectorAll("#addMembersList input:checked");
     const memberIds = Array.from(cbs).map(c => c.value);
-    if(memberIds.length === 0) return setAlert(alertEl, "err", "Lütfen eklenecek öğrencileri seçin.");
+    if(memberIds.length === 0) return setAlert(alertEl, "err", "Lütfen gruba alınacak öğrencileri seçin.");
     
     try {
+      const btn = document.getElementById("addMembersBtn");
+      btn.disabled = true; btn.textContent = "Ekleniyor...";
       await apiFetch(`/api/groups/${activeGroupId}/members`, { method: "POST", body: JSON.stringify({memberIds}) });
       setAlert(alertEl, "ok", "Öğrenciler başarıyla gruba eklendi!");
-      loadGroups(); setTimeout(populateGroupSettings, 500);
-    } catch(e) { setAlert(alertEl, "err", "Öğrenci eklenemedi."); }
+      loadGroups(); 
+      setTimeout(() => {
+        populateGroupSettings();
+        closeModal(document.getElementById("addMembersModal"));
+      }, 700);
+      btn.disabled = false; btn.textContent = "Seçilenleri Ekle";
+    } catch(e) { 
+      setAlert(alertEl, "err", "Öğrenci eklenemedi.");
+      document.getElementById("addMembersBtn").disabled = false; 
+      document.getElementById("addMembersBtn").textContent = "Seçilenleri Ekle";
+    }
   });
 
   document.getElementById("groupChatInput")?.addEventListener("keypress", (e) => { if(e.key === 'Enter') sendGroupMessage(); });
   document.getElementById("sendGroupMsgBtn")?.addEventListener("click", sendGroupMessage);
+
+  const fileInput = document.getElementById("groupChatFileInput");
+  const attachBtn = document.getElementById("groupChatAttachBtn");
+  const filePreview = document.getElementById("groupChatFilePreview");
+  const fileName = document.getElementById("groupChatFileName");
+  const fileClear = document.getElementById("groupChatFileClear");
+
+  if(attachBtn && fileInput) {
+    attachBtn.addEventListener("click", () => fileInput.click());
+    fileInput.addEventListener("change", () => {
+      if(fileInput.files.length > 0) {
+        if(fileName) fileName.textContent = "📎 " + fileInput.files[0].name;
+        if(filePreview) filePreview.hidden = false;
+      } else {
+        if(filePreview) filePreview.hidden = true;
+      }
+    });
+  }
+  if(fileClear) {
+    fileClear.addEventListener("click", () => {
+      if(fileInput) fileInput.value = "";
+      if(filePreview) filePreview.hidden = true;
+    });
+  }
+});
+
+// ========= DERS (COURSE) YÖNETİMİ =========
+function populateCourseSelects() {
+  const qa = document.getElementById("qaCourse");
+  const a = document.getElementById("aCourse");
+  if(!qa || !a) return;
+  qa.innerHTML = '<option value="">-- Ders Seç --</option>';
+  a.innerHTML = '<option value="">-- Ders Seç --</option>';
+  const cls = (classesCache || []).find(c => c.id === activeClassId);
+  if (cls && cls.courses && Array.isArray(cls.courses)) {
+    cls.courses.forEach(c => {
+      qa.innerHTML += `<option value="${c}">${c}</option>`;
+      a.innerHTML += `<option value="${c}">${c}</option>`;
+    });
+  }
+}
+
+document.querySelectorAll(".add-course-btn").forEach(btn => {
+  btn.addEventListener("click", async () => {
+    if (!requireActiveClass()) return;
+    const cName = prompt("Eklemek istediğiniz yeni dersin adını girin (Örn: Matematik):");
+    if (!cName || !cName.trim()) return;
+    try {
+      const resp = await apiFetch(`/api/classes/${activeClassId}/courses`, {
+        method: "POST",
+        body: JSON.stringify({ courseName: cName.trim() })
+      });
+      const cls = (classesCache || []).find(c => c.id === activeClassId);
+      if(cls && resp.class) cls.courses = resp.class.courses;
+      populateCourseSelects();
+      alert("Ders eklendi!");
+    } catch(err) {
+      alert("Hata: " + err.message);
+    }
+  });
 });
 
 // ========= REFRESH =========
@@ -1154,6 +1317,7 @@ async function refreshAll(fetchFresh = false) {
   }
 
   renderKPIs();
+  populateCourseSelects();
   renderAssignmentList();
   renderSubmissionList();
   renderLastSubmissions();
@@ -1161,6 +1325,194 @@ async function refreshAll(fetchFresh = false) {
   fillChatStudents(); 
   loadChat(); 
   loadGroups(); // YENİ: Sınıf yenilendiğinde grupları da yenile
+}
+
+// ========= YENİ: GRAFIKLER =========
+let performanceChart = null;
+const chartWrapper = document.getElementById("chartWrapper");
+const chartContainer = document.getElementById("chartContainer");
+const emptyChartMsg = document.getElementById("emptyChartMsg");
+const includedStudentsArea = document.getElementById("includedStudentsArea");
+const dragPlaceholder = document.getElementById("dragPlaceholder");
+const draggableStudentList = document.getElementById("draggableStudentList");
+const graphStudentSearch = document.getElementById("graphStudentSearch");
+
+let graphIncludedStudentIds = new Set();
+
+if (graphStudentSearch) {
+  graphStudentSearch.addEventListener("input", renderDraggableStudents);
+}
+
+function renderDraggableStudents() {
+  if (!draggableStudentList) return;
+  draggableStudentList.innerHTML = "";
+  if (!activeClassId) return;
+  
+  const members = (membersCache || []).slice().sort((a,b) => (a.studentName || "").localeCompare(b.studentName || ""));
+  const term = (graphStudentSearch?.value || "").toLowerCase().trim();
+  
+  const available = members.filter(m => !graphIncludedStudentIds.has(m.studentId) && m.studentName.toLowerCase().includes(term));
+  
+  if (available.length === 0) {
+    draggableStudentList.innerHTML = '<div style="color:#999; font-size:12px; padding:10px;">Bulunamadı veya hepsi grafiğe eklendi.</div>';
+    return;
+  }
+  
+  available.forEach(m => {
+    const el = document.createElement("div");
+    el.className = "rowcard";
+    el.style.cursor = "grab";
+    el.style.padding = "8px";
+    el.draggable = true;
+    el.innerHTML = `<div style="flex:1;">${m.studentName}</div><div style="font-size:12px; color:#666; font-weight:bold;">Sürükle ➜</div>`;
+    el.ondragstart = (e) => {
+      e.dataTransfer.setData("studentId", m.studentId);
+    };
+    draggableStudentList.appendChild(el);
+  });
+}
+
+window.handleDrop = function(e) {
+  e.preventDefault();
+  const sId = e.dataTransfer.getData("studentId");
+  if(sId && !graphIncludedStudentIds.has(sId)) {
+    graphIncludedStudentIds.add(sId);
+    updateGraphUI();
+  }
+};
+
+function renderIncludedStudents() {
+  if (!includedStudentsArea || !dragPlaceholder) return;
+  
+  Array.from(includedStudentsArea.children).forEach(ch => {
+    if (ch.id !== "dragPlaceholder") ch.remove();
+  });
+  
+  if (graphIncludedStudentIds.size === 0) {
+    dragPlaceholder.style.display = "block";
+  } else {
+    dragPlaceholder.style.display = "none";
+    
+    Array.from(graphIncludedStudentIds).forEach(sId => {
+      const m = (membersCache || []).find(x => x.studentId === sId);
+      if(!m) return;
+      
+      const chip = document.createElement("div");
+      chip.className = "chip clickable";
+      chip.style.cursor = "pointer";
+      chip.style.backgroundColor = "var(--primary)";
+      chip.style.color = "white";
+      chip.style.padding = "4px 8px";
+      chip.style.borderRadius = "12px";
+      chip.title = "Grafikten Çıkarmak İçin Tıkla";
+      chip.textContent = m.studentName + " ✕";
+      
+      chip.onclick = () => {
+        graphIncludedStudentIds.delete(sId);
+        updateGraphUI();
+      };
+      
+      includedStudentsArea.appendChild(chip);
+    });
+  }
+}
+
+function updateGraphUI() {
+  renderDraggableStudents();
+  renderIncludedStudents();
+  renderClassGraph();
+}
+
+function renderClassGraph() {
+  if(!chartWrapper || !emptyChartMsg || !chartContainer) return;
+  
+  if (graphIncludedStudentIds.size === 0) {
+    chartWrapper.style.display = "none";
+    emptyChartMsg.style.display = "block";
+    emptyChartMsg.textContent = "Lütfen listeden grafiğe öğrenci sürükleyin.";
+    if(performanceChart) performanceChart.destroy();
+    return;
+  }
+  
+  const includedMembers = (membersCache || []).filter(m => graphIncludedStudentIds.has(m.studentId));
+  const cls = (classesCache || []).find(c => c.id === activeClassId);
+  
+  let uniqueCourses = [];
+  if (cls && cls.courses && cls.courses.length > 0) {
+    uniqueCourses = cls.courses;
+  } else {
+    const cSet = new Set();
+    (assignmentsCache || []).forEach(a => { if (a.course) cSet.add(a.course); });
+    uniqueCourses = Array.from(cSet);
+  }
+  uniqueCourses.sort();
+  
+  if(uniqueCourses.length === 0) {
+    chartWrapper.style.display = "none";
+    emptyChartMsg.style.display = "block";
+    emptyChartMsg.textContent = "Grafik için veri (ders) yok.";
+    return;
+  }
+  
+  chartWrapper.style.display = "block";
+  emptyChartMsg.style.display = "none";
+  
+  const minWidth = Math.max(800, includedMembers.length * uniqueCourses.length * 30 + 150);
+  chartContainer.style.minWidth = minWidth + "px";
+
+  const labels = uniqueCourses;
+
+  const datasets = includedMembers.map((m, idx) => {
+    const hue = (idx * 137.508) % 360; 
+    const bgColor = `hsla(${hue}, 70%, 55%, 0.7)`;
+    const borderColor = `hsl(${hue}, 70%, 50%)`;
+    
+    // Y-Axis averge grades by course
+    const data = labels.map(cName => {
+      const subs = (submissionsCache || []).filter(s => 
+        s.studentId === m.studentId && 
+        s.course === cName && 
+        s.status === "graded" &&
+        !isNaN(Number(s.grade))
+      );
+      if (subs.length === 0) return 0;
+      const total = subs.reduce((acc, s) => acc + Number(s.grade), 0);
+      return Math.round(total / subs.length);
+    });
+
+    return {
+      label: m.studentName,
+      data: data,
+      backgroundColor: bgColor,
+      borderColor: borderColor,
+      borderWidth: 1,
+      borderRadius: 4
+    };
+  });
+
+  const ctx = document.getElementById('studentPerformanceChart');
+  if(!ctx) return;
+  if(performanceChart) performanceChart.destroy();
+
+  performanceChart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: labels,
+      datasets: datasets
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: {
+        y: { beginAtZero: true, max: 100, title: { display: true, text: 'Ortalama Not' } },
+        x: { title: { display: true, text: 'Dersler' }, grid: { offset: true } }
+      },
+      plugins: {
+        tooltip: { mode: 'index', intersect: false },
+        legend: { position: 'top' }
+      }
+    }
+  });
 }
 
 // ========= BOOT =========
@@ -1192,4 +1544,145 @@ async function refreshAll(fetchFresh = false) {
     }
     loadNotifications();
   }, 5000);
+
+  // ==========================================
+  // CANLI DERS & QUIZ (ÖĞRETMEN)
+  // ==========================================
+  
+  async function checkLiveStatus() {
+    if (!activeClassId) return;
+    try {
+      const data = await apiFetch(`/api/live/status?classId=${activeClassId}`);
+      if (data && data.active) {
+        document.getElementById("liveStartPanel").hidden = true;
+        document.getElementById("liveActivePanel").hidden = false;
+        document.getElementById("activeLiveLink").href = data.lesson.link;
+        renderAttendance(data.lesson);
+      } else {
+        document.getElementById("liveStartPanel").hidden = false;
+        document.getElementById("liveActivePanel").hidden = true;
+        document.getElementById("attendanceList").innerHTML = "";
+        document.getElementById("emptyAttendance").hidden = false;
+      }
+    } catch(e) {}
+  }
+  
+  function renderAttendance(lesson) {
+    const list = document.getElementById("attendanceList");
+    const empty = document.getElementById("emptyAttendance");
+    if (!lesson.attendees || lesson.attendees.length === 0) {
+      list.innerHTML = "";
+      empty.hidden = false;
+      empty.innerText = "Henüz katılan yok. Biri katıldığında burada belirecek...";
+      return;
+    }
+    
+    empty.hidden = true;
+    list.innerHTML = "";
+    
+    const quizAnswers = lesson.activeQuiz ? lesson.activeQuiz.answers : [];
+    const correctAns = lesson.activeQuiz ? (lesson.activeQuiz.correctAnswer || "").trim() : "";
+  
+    lesson.attendees.forEach(studentId => {
+      const student = membersCache.find(m => m.studentId === studentId);
+      const name = student ? student.studentName : "Öğrenci (" + studentId + ")";
+      
+      let answerText = "";
+      if (lesson.activeQuiz) {
+        const qAns = quizAnswers.find(a => a.studentId === studentId);
+        if (qAns) {
+          const isCorrect = correctAns && qAns.choice.trim() === correctAns;
+          if (isCorrect) {
+            answerText = `<span style="font-size:15px; font-weight:900; background:#10b981; color:white; padding:6px 14px; border-radius:20px; display:inline-flex; align-items:center; gap:6px;">✅ ${qAns.choice}</span>`;
+          } else {
+            answerText = `<span style="font-size:15px; font-weight:900; background:#ef4444; color:white; padding:6px 14px; border-radius:20px; display:inline-flex; align-items:center; gap:6px;">❌ ${qAns.choice}</span>`;
+          }
+        } else {
+          answerText = `<span style="font-size:14px; font-weight:bold; background:#fef3c7; color:#d97706; padding:6px 14px; border-radius:20px;">⏳ Yanıt Bekleniyor</span>`;
+        }
+      }
+  
+      list.innerHTML += `
+        <div class="rowcard" style="padding:14px 16px; display:flex; justify-content:space-between; width:100%; align-items:center;">
+          <div style="display:flex; align-items:center; gap:10px;">
+            <span style="display:inline-block; width:12px; height:12px; background:#10b981; border-radius:50%;"></span>
+            <span style="font-weight:900; color:#1e3a5f; font-size:16px;">${name}</span>
+          </div>
+          <div style="display:flex; align-items:center; gap:10px;">
+            ${answerText}
+            <span class="pill active-status" style="margin:0;">Derste (Yoğun)</span>
+          </div>
+        </div>
+      `;
+    });
+  }
+  
+  const liveStartForm = document.getElementById("liveStartForm");
+  if (liveStartForm) {
+    liveStartForm.onsubmit = async (e) => {
+      e.preventDefault();
+      if (!activeClassId) return alert("Önce sol menüden sınıf seçmelisiniz.");
+      const link = document.getElementById("liveLink").value;
+      try {
+        await apiFetch("/api/live/start", {
+          method: "POST",
+          body: JSON.stringify({ classId: activeClassId, link })
+        });
+        document.getElementById("liveLink").value = "";
+        checkLiveStatus();
+      } catch(e) { alert("Hata: " + e.message); }
+    };
+  }
+  
+  const endLiveBtn = document.getElementById("endLiveBtn");
+  if (endLiveBtn) {
+    endLiveBtn.onclick = async () => {
+      if (!activeClassId) return;
+      if (!confirm("Dersi bitirmek istediğinize emin misiniz? Sınıf yoklama listesi sıfırlanacak.")) return;
+      try {
+        await apiFetch("/api/live/end", { method: "POST", body: JSON.stringify({ classId: activeClassId }) });
+        checkLiveStatus();
+      } catch(e) {}
+    };
+  }
+  
+  const liveQuizForm = document.getElementById("liveQuizForm");
+  if (liveQuizForm) {
+    liveQuizForm.onsubmit = async (e) => {
+      e.preventDefault();
+      if (!activeClassId) return;
+      const q = document.getElementById("quizQuestion").value;
+      const optsStr = document.getElementById("quizOpts").value.trim();
+      const options = optsStr.split(/\s+(?=[A-Za-z]\))/).map(o => o.trim()).filter(Boolean);
+      if (options.length < 2) return alert("En az 2 şık girmelisiniz.\nÖrnek: A)py B)cs C)js");
+      const correctAnswer = (document.getElementById("quizCorrectAnswer")?.value || "").trim();
+      if (!correctAnswer) return alert("Lütfen doğru cevap şıkkını yazın.");
+      try {
+        const btn = liveQuizForm.querySelector("button");
+        btn.disabled = true; btn.innerText = "Gönderiliyor...";
+        await apiFetch("/api/quiz/publish", { method: "POST", body: JSON.stringify({ classId: activeClassId, question: q, options, correctAnswer }) });
+        document.getElementById("quizQuestion").value = "";
+        document.getElementById("quizOpts").value = "";
+        if (document.getElementById("quizCorrectAnswer")) document.getElementById("quizCorrectAnswer").value = "";
+        const st = document.getElementById("quizStatus");
+        st.className = "alert ok";
+        st.innerText = "Soru anında tüm öğrencilere gönderildi!";
+        st.hidden = false;
+        setTimeout(() => { st.hidden = true; }, 3000);
+        btn.disabled = false; btn.innerText = "Yeni Soru Gönder";
+        checkLiveStatus();
+      } catch(err) {
+        alert("Hata: " + err.message);
+      }
+    };
+  }
+  
+  // 5 saniyede bir paneli otomatik tazele (Yoklama için)
+  setInterval(() => {
+    const isLiveTab = document.getElementById("view-live").classList.contains("active");
+    if (isLiveTab && activeClassId) {
+      checkLiveStatus();
+    }
+  }, 5000);
+
 })();

@@ -32,6 +32,17 @@ app.use(express.urlencoded({ extended: true }));
 // Static
 app.use(express.static(path.join(__dirname, "..", "public")));
 
+// ============================
+// MULTER (memory)
+// ============================
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 25 * 1024 * 1024 }, // 25MB
+  fileFilter: (req, file, cb) => {
+    cb(null, true); 
+  },
+});
+
 // Health
 app.get("/health", (req, res) => {
   res.json({ ok: true, time: new Date().toISOString() });
@@ -142,20 +153,40 @@ app.get("/api/groups/:groupId/messages", authRequired, (req, res) => {
   res.json({ ok: true, messages: msgs });
 });
 
-// 4. Gruba Mesaj Atma
-app.post("/api/groups/message", authRequired, (req, res) => {
+// 4. Gruba Mesaj Atma (Fotoğraf/PDF Destekli)
+app.post("/api/groups/message", authRequired, upload.single("file"), (req, res) => {
   const { groupId, text } = req.body;
   const user = db.users.find(u => u.id === req.auth.userId);
   const group = db.groups.find(g => g.id === groupId);
   if (!group) return res.status(404).json({ok: false});
+
+  let fileInfo = null;
+  if (req.file) {
+    const fileId = makeId("file");
+    db.files.push({
+      id: fileId,
+      buffer: req.file.buffer,
+      mimetype: req.file.mimetype,
+      originalname: req.file.originalname,
+      size: req.file.size
+    });
+    fileInfo = {
+      fileId,
+      originalFileName: req.file.originalname,
+      mimeType: req.file.mimetype,
+      size: req.file.size,
+      fileUrl: `/api/files/${fileId}`
+    };
+  }
 
   const msg = {
     id: makeId("gmsg"),
     groupId,
     senderId: req.auth.userId,
     senderName: user ? user.name : "Kullanıcı",
-    text: safeName(text),
-    createdAt: new Date().toISOString()
+    text: safeName(text) || "",
+    createdAt: new Date().toISOString(),
+    ...fileInfo
   };
   
   db.group_messages.push(msg);
@@ -221,12 +252,15 @@ app.delete("/api/groups/:groupId/members/:studentId", authRequired, (req, res) =
 // YENİ: NOTIFICATION, CHAT & AI API
 // ============================
 
-// 1. Bildirimleri Getir (Sadece okunmamışları veya hepsini)
+// 1. Bildirimleri Getir (Hepsini getirir, okunmamış sayısını da döner)
 app.get("/api/notifications", authRequired, (req, res) => {
   const notifs = db.notifications
-    .filter(n => n.toUserId === req.auth.userId && !n.read)
+    .filter(n => n.toUserId === req.auth.userId)
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-  res.json({ ok: true, notifications: notifs });
+  const unreadCount = notifs.filter(n => !n.read).length;
+  // Sadece en son 50 bildirimi döndür (şişmeyi önlemek için)
+  const topNotifs = notifs.slice(0, 50);
+  res.json({ ok: true, notifications: topNotifs, unreadCount });
 });
 
 // 1.5 Bildirimleri Okundu İşaretle (Kırmızı baloncuğu silmek için)
@@ -234,6 +268,12 @@ app.post("/api/notifications/read", authRequired, (req, res) => {
   db.notifications.forEach(n => {
     if (n.toUserId === req.auth.userId) n.read = true;
   });
+  res.json({ ok: true });
+});
+
+// YENİ: Bildirimi tekli olarak kalıcı sil
+app.post("/api/notifications/dismiss/:id", authRequired, (req, res) => {
+  db.notifications = db.notifications.filter(n => n.id !== req.params.id);
   res.json({ ok: true });
 });
 
@@ -338,16 +378,6 @@ const transporter = mailEnabled
 const RESET_CODE_TTL_MIN = Number(process.env.RESET_CODE_TTL_MIN || 10);
 const RESET_TOKEN_TTL_MIN = Number(process.env.RESET_TOKEN_TTL_MIN || 15);
 
-// ============================
-// MULTER (memory)
-// ============================
-const upload = multer({
-  storage: multer.memoryStorage(),
-  limits: { fileSize: 25 * 1024 * 1024 }, // 25MB
-  fileFilter: (req, file, cb) => {
-    cb(null, true); 
-  },
-});
 
 // ============================
 // FILE DOWNLOAD (RAM)
@@ -583,6 +613,7 @@ app.post("/api/classes/create", authRequired, (req, res) => {
   const item = {
     id: makeId("cls"), teacherId: req.auth.userId, name: n,
     desc: safeName(req.body.desc), code, createdAt: new Date().toISOString(),
+    courses: []
   };
   db.classes.push(item);
   res.json({ ok: true, class: item });
@@ -594,7 +625,26 @@ app.get("/api/classes/mine", authRequired, (req, res) => {
   if (teacherId !== req.auth.userId) return res.status(403).json({ ok: false, message: "Yetkisiz." });
 
   const classes = db.classes.filter(c => c.teacherId === teacherId).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  
+  // Retro-compatibility for existing classes to have courses array
+  classes.forEach(c => { if(!c.courses) c.courses = []; });
+  
   res.json({ ok: true, classes });
+});
+
+app.post("/api/classes/:classId/courses", authRequired, (req, res) => {
+  if (req.auth.role !== "teacher") return res.status(403).json({ ok: false, message: "Sadece öğretmen." });
+  const classId = req.params.classId;
+  const courseName = String(req.body.courseName || "").trim();
+  const cls = db.classes.find(c => c.id === classId);
+  if (!cls) return res.status(404).json({ ok: false, message: "Sınıf bulunamadı." });
+  if (cls.teacherId !== req.auth.userId) return res.status(403).json({ ok: false, message: "Yetkisiz." });
+  if (!courseName) return res.status(400).json({ ok: false, message: "Ders adı boş." });
+
+  if (!cls.courses) cls.courses = [];
+  if (!cls.courses.includes(courseName)) cls.courses.push(courseName);
+
+  res.json({ ok: true, class: cls });
 });
 
 app.get("/api/classes/search", (req, res) => {
@@ -659,8 +709,97 @@ app.get("/api/classes/members", authRequired, (req, res) => {
   if (!classId) return res.json({ ok: true, members: [] });
 
   // İlgili sınıftaki tüm üyeleri filtrele
-  const members = db.class_members.filter(m => m.classId === classId);
+  const members = db.class_members.filter(m => m.classId === classId).map(m => {
+    const user = db.users.find(u => u.id === m.studentId);
+    let status = "offline";
+    if (user && user.lastSeen) {
+      const diffMin = (new Date() - new Date(user.lastSeen)) / 60000;
+      if (diffMin < 2) {
+        status = user.status === "idle" ? "idle" : "active";
+      }
+    }
+    return { ...m, status };
+  });
   res.json({ ok: true, members });
+});
+
+// YENİ: Öğrenci Aktivite Durumu Güncelleme
+app.post("/api/users/ping", authRequired, (req, res) => {
+  const user = db.users.find(u => u.id === req.auth.userId);
+  if (user) {
+    user.lastSeen = new Date().toISOString();
+    user.status = req.body.status || "active"; 
+  }
+  res.json({ ok: true });
+});
+
+// ==========================================
+// CANLI DERS & QUIZ API (YENİ EKLENTİ)
+// ==========================================
+
+// Bellekte tutulacak canlı ders durumu
+db.activeLessons = [];
+
+// Öğretmen: Canlı Dersi Başlat
+app.post("/api/live/start", authRequired, (req, res) => {
+  const { classId, link } = req.body;
+  if (!classId || !link) return res.status(400).json({ ok: false, message: "Sınıf ve link gerekli." });
+  
+  db.activeLessons = db.activeLessons.filter(l => l.classId !== classId);
+  db.activeLessons.push({ classId, teacherId: req.auth.userId, link, startTime: new Date().toISOString(), attendees: [], activeQuiz: null });
+  res.json({ ok: true, message: "Ders başlatıldı." });
+});
+
+// Öğretmen: Canlı Dersi Bitir
+app.post("/api/live/end", authRequired, (req, res) => {
+  const { classId } = req.body;
+  db.activeLessons = db.activeLessons.filter(l => l.classId !== classId);
+  res.json({ ok: true });
+});
+
+// Öğrenci / Öğretmen: Aktif ders durumunu çek
+app.get("/api/live/status", authRequired, (req, res) => {
+  const classId = req.query.classId;
+  const lesson = db.activeLessons.find(l => l.classId === classId);
+  if (!lesson) return res.json({ ok: true, active: false });
+  res.json({ ok: true, active: true, lesson });
+});
+
+// Öğrenci: Derse Katıl (Yoklama)
+app.post("/api/live/join", authRequired, (req, res) => {
+  const { classId } = req.body;
+  const lesson = db.activeLessons.find(l => l.classId === classId);
+  if (lesson) {
+    if (!lesson.attendees.includes(req.auth.userId)) lesson.attendees.push(req.auth.userId);
+    const user = db.users.find(u => u.id === req.auth.userId);
+    if (user) { user.status = "busy"; user.lastSeen = new Date().toISOString(); } // Derste olan Yoğun Gözükür
+  }
+  res.json({ ok: true });
+});
+
+// Öğretmen: Quiz Gönder
+app.post("/api/quiz/publish", authRequired, (req, res) => {
+  const { classId, question, options, correctAnswer } = req.body;
+  const lesson = db.activeLessons.find(l => l.classId === classId);
+  if (!lesson) return res.status(400).json({ ok: false, message: "Aktif bir ders bulunamadı." });
+  lesson.activeQuiz = { id: Date.now().toString(), question, options, correctAnswer: correctAnswer || "", answers: [] };
+  res.json({ ok: true });
+});
+
+// Öğrenci: Quiz Cevapla
+app.post("/api/quiz/submit", authRequired, (req, res) => {
+  const { classId, quizId, choice } = req.body;
+  const lesson = db.activeLessons.find(l => l.classId === classId);
+  if (lesson && lesson.activeQuiz && lesson.activeQuiz.id === quizId) {
+    const existing = lesson.activeQuiz.answers.find(a => a.studentId === req.auth.userId);
+    if (existing) existing.choice = choice;
+    else lesson.activeQuiz.answers.push({ studentId: req.auth.userId, choice });
+    
+    const correctAnswer = lesson.activeQuiz.correctAnswer || "";
+    const isCorrect = correctAnswer && choice.trim() === correctAnswer.trim();
+    return res.json({ ok: true, isCorrect, correctAnswer });
+  }
+  res.json({ ok: true });
 });
 
 // ============================

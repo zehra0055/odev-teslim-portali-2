@@ -383,6 +383,10 @@ input:focus, textarea:focus, select:focus{
 .pill.warn{ background: rgba(245,158,11,.14); color:#7c2d12; }
 .pill.ok{ background: rgba(16,185,129,.12); color:#065f46; }
 
+.pill.active-status { background: rgba(16,185,129,.15); color: #059669; }
+.pill.idle-status { background: rgba(245,158,11,.15); color: #d97706; }
+.pill.offline-status { background: rgba(156,163,175,.2); color: #4b5563; }
+
 .empty{
   color:var(--muted);
   font-weight:900;

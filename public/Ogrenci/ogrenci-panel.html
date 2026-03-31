@@ -66,6 +66,7 @@
           <button class="navbtn" data-view="submit">📤 Teslim Et</button>
           <button class="navbtn" data-view="history">🕘 Geçmiş</button>
           <button class="navbtn" data-view="groups">💬 Gruplar</button>
+          <button class="navbtn" data-view="live" style="color:#ef4444;">🎥 Canlı Ders</button>
         </div>
 
         <div class="mini">
@@ -290,8 +291,14 @@
               <button class="btn ghost" id="openGroupSettingsBtn" title="Grup Ayarları">⚙️ Ayarlar</button>
             </div>
             <div class="chat-messages" id="groupChatBody"></div>
-            <div class="chat-input-area">
-              <input type="text" id="groupChatInput" placeholder="Gruba mesaj gönder..." />
+            <div id="groupChatFilePreview" hidden style="padding: 8px 16px; background: #f1f5f9; border-top: 1px solid var(--line); font-size: 13px; display: flex; justify-content: space-between; align-items: center;">
+              <span id="groupChatFileName" style="display:flex; align-items:center; gap:5px; font-weight:bold; color:var(--primary);">📎 dosya</span>
+              <button class="icon-btn" id="groupChatFileClear" style="color: #ef4444; font-size:16px;" type="button">✕</button>
+            </div>
+            <div class="chat-input-area" style="display:flex; gap:10px; align-items:center;">
+              <input type="file" id="groupChatFileInput" hidden />
+              <button class="icon-btn" id="groupChatAttachBtn" style="font-size: 20px; color: var(--primary);" title="Dosya/Fotoğraf Ekle" type="button">📎</button>
+              <input type="text" id="groupChatInput" placeholder="Gruba mesaj gönder..." style="flex:1;" />
               <button class="btn primary" id="sendGroupMsgBtn">Gönder</button>
             </div>
           </div>
@@ -314,9 +321,7 @@
               </div>
 
               <div class="field">
-                <label>Gruba Öğrenci Ekle</label>
-                <div id="addMembersList" class="checkbox-container"></div>
-                <button class="btn ghost block" id="addMembersBtn" style="margin-top:10px;">Seçilenleri Ekle</button>
+                <button class="btn ghost block" id="openAddMembersModal" style="border: 1px solid var(--primary); color: var(--primary); font-weight:bold;">Katılma İstekleri / Öğrenci Ekle</button>
               </div>
 
               <div class="field">
@@ -332,6 +337,32 @@
 
           <div class="chat-main-empty" id="groupChatEmpty">
             Sohbet etmek için soldan bir grup seçin.
+          </div>
+        </div>
+      </section>
+
+      <section class="view" id="view-live">
+        <div class="page-head">
+          <div>
+            <h1>🎥 Canlı Ders</h1>
+            <p class="muted">Öğretmen ders başlattığında burada katılabilirsiniz.</p>
+          </div>
+          <div class="chip" id="liveClassChipStudent">Sınıf: —</div>
+        </div>
+
+        <div class="panel" style="text-align:center; padding: 40px 20px;">
+          <div id="liveWaiting">
+            <div style="font-size:40px; margin-bottom:10px;">☕</div>
+            <h2 style="margin:0 0 10px; color:#1e3a5f;">Şu an aktif bir yayın yok</h2>
+            <p style="color:#64748b; margin:0;">Öğretmeniniz ders başlattığında buton otomatik ekranda belirecektir.</p>
+          </div>
+          
+          <div id="liveActive" hidden>
+            <div style="font-size:40px; margin-bottom:10px; color:#ef4444;">🔴</div>
+            <h2 style="margin:0 0 10px; color:#ef4444;">Canlı Ders Başladı!</h2>
+            <p style="color:#64748b; margin-bottom:20px;">Öğretmeniniz canlı dersi başlattı. Katılmak için aşağıdaki butona tıklayın.</p>
+            <button class="btn primary" id="joinLiveBtn" style="font-size:18px; padding:0 30px; height:50px; background:#ef4444; border:2px solid #b91c1c;">🚀 Derse Katıl</button>
+            <div style="margin-top:10px; font-size:12px; color:var(--muted);">Katıldığınız an yoklamaya ekleneceksiniz. Dersi arka planda dinleyebilirsiniz.</div>
           </div>
         </div>
       </section>
@@ -438,6 +469,38 @@
       </div>
       <button class="btn primary block" id="submitCreateGroupBtn" style="margin-top:10px;">Grubu Oluştur</button>
       <div class="alert" id="groupAlert" hidden></div>
+    </div>
+  </div>
+
+  <div class="modal" id="quizModal" aria-hidden="true">
+    <div class="modal-card">
+      <div class="modal-top" style="background:#ef4444; padding:15px; margin:-14px -14px 14px -14px; border-radius:14px 14px 0 0; display:flex; justify-content:space-between; align-items:center;">
+        <div class="modal-title" style="color:white; font-size:18px;">✍️ Anlık Yoklama/Quiz!</div>
+        <button class="icon-btn" data-close="quizModal" style="color:white; background:rgba(0,0,0,0.2);">✕</button>
+      </div>
+      <div style="padding-top:10px;">
+        <h3 id="quizQuestionText" style="margin-top:0; color:#1e3a5f;">Soru?</h3>
+        <div id="quizOptions" style="display:flex; flex-direction:column; gap:10px; margin-bottom:20px;">
+          <!-- Options will be rendered here -->
+        </div>
+        <button class="btn primary block" id="submitQuizBtn">Cevabı Gönder</button>
+        <div class="alert" id="quizAlert" hidden></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal" id="addMembersModal" aria-hidden="true">
+    <div class="modal-card" role="dialog" aria-modal="true">
+      <div class="modal-top">
+        <div class="modal-title">Öğrenci Ekle / Katılma İstekleri</div>
+        <button class="icon-btn" data-close="addMembersModal" aria-label="Kapat" type="button">✕</button>
+      </div>
+      <div style="padding-top: 10px;">
+        <div class="muted" style="margin-bottom:10px; font-size:13px;">Grupta olmayan sınıf üyeleri veya katılma isteği atanlar listelenir. Tıklayarak gruba alabilirsiniz.</div>
+        <div id="addMembersList" class="checkbox-container" style="max-height: 250px; overflow-y: auto; text-align: left;"></div>
+        <button class="btn primary block" id="addMembersBtn" style="margin-top: 15px;">Seçilenleri Ekle</button>
+        <div class="alert" id="addMembersAlert" hidden></div>
+      </div>
     </div>
   </div>
 

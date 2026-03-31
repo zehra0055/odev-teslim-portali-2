@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Ödev Teslim Portalı | Öğretmen Paneli</title>
   <link rel="stylesheet" href="ogretmen.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
   <div class="bg-blobs" aria-hidden="true">
@@ -69,6 +70,8 @@
           <button class="navbtn" data-view="submissions" type="button">📥 Teslimler</button>
           <button class="navbtn" data-view="students" type="button">👥 Öğrenciler</button>
           <button class="navbtn" data-view="groups" type="button">💬 Gruplar</button>
+          <button class="navbtn" data-view="graphs" type="button">📈 Grafikler</button>
+          <button class="navbtn" data-view="live" type="button" style="color:#ef4444;">🎥 Canlı Ders</button>
         </div>
 
         <div class="mini">
@@ -118,7 +121,12 @@
               <div class="row two">
                 <div class="field">
                   <label for="qaCourse">Ders</label>
-                  <input id="qaCourse" type="text" placeholder="Örn: Matematik" />
+                  <div style="display:flex; gap:8px;">
+                    <select id="qaCourse" style="flex:1;">
+                      <option value="">-- Ders Seç --</option>
+                    </select>
+                    <button type="button" class="btn ghost add-course-btn" title="Yeni Ders Ekle">+</button>
+                  </div>
                 </div>
                 <div class="field">
                   <label for="qaDue">Son Tarih</label>
@@ -171,7 +179,12 @@
               <div class="row two">
                 <div class="field">
                   <label for="aCourse">Ders</label>
-                  <input id="aCourse" type="text" placeholder="Örn: Tarih" />
+                  <div style="display:flex; gap:8px;">
+                    <select id="aCourse" style="flex:1;">
+                      <option value="">-- Ders Seç --</option>
+                    </select>
+                    <button type="button" class="btn ghost add-course-btn" title="Yeni Ders Ekle">+</button>
+                  </div>
                 </div>
                 <div class="field">
                   <label for="aDue">Son Tarih</label>
@@ -339,8 +352,14 @@
               <button class="btn ghost" id="openGroupSettingsBtn" title="Grubu Yönet">⚙️ Ayarlar</button>
             </div>
             <div class="chat-messages" id="groupChatBody"></div>
-            <div class="chat-input-area">
-              <input type="text" id="groupChatInput" placeholder="Gruba mesaj gönder..." />
+            <div id="groupChatFilePreview" hidden style="padding: 8px 16px; background: #f1f5f9; border-top: 1px solid var(--line); font-size: 13px; display: flex; justify-content: space-between; align-items: center;">
+              <span id="groupChatFileName" style="display:flex; align-items:center; gap:5px; font-weight:bold; color:var(--primary);">📎 dosya</span>
+              <button class="icon-btn" id="groupChatFileClear" style="color: #ef4444; font-size:16px;" type="button">✕</button>
+            </div>
+            <div class="chat-input-area" style="display:flex; gap:10px; align-items:center;">
+              <input type="file" id="groupChatFileInput" hidden />
+              <button class="icon-btn" id="groupChatAttachBtn" style="font-size: 20px; color: var(--primary);" title="Dosya/Fotoğraf Ekle" type="button">📎</button>
+              <input type="text" id="groupChatInput" placeholder="Gruba mesaj gönder..." style="flex:1;" />
               <button class="btn primary" id="sendGroupMsgBtn">Gönder</button>
             </div>
           </div>
@@ -363,9 +382,7 @@
               </div>
 
               <div class="field">
-                <label>Gruba Öğrenci Ekle</label>
-                <div id="addMembersList" class="checkbox-container"></div>
-                <button class="btn ghost block" id="addMembersBtn" style="margin-top:10px;">Seçilenleri Ekle</button>
+                <button class="btn ghost block" id="openAddMembersModal" style="border: 1px solid var(--primary); color: var(--primary); font-weight:bold;">Katılma İstekleri / Öğrenci Ekle</button>
               </div>
 
               <div class="field">
@@ -377,6 +394,108 @@
 
           <div class="chat-main-empty" id="groupChatEmpty">
             Okumak ve yönetmek için soldan bir grup seçin.
+          </div>
+        </div>
+      </section>
+
+      <section class="view" id="view-graphs">
+        <div class="page-head">
+          <div>
+            <h1>📈 Gelişim Grafikleri</h1>
+            <p class="muted">Öğrencilerin ödev performanslarını takip et.</p>
+          </div>
+        </div>
+
+        <div class="grid-2" style="grid-template-columns: 2fr 1fr; align-items: start;">
+          <div class="panel">
+            <div class="panel-title">Seçili Öğrenciler & Grafik</div>
+            <div class="panel-sub" style="margin-bottom: 10px;">Çıkarmak istediğin öğrencinin ismine tıkla.</div>
+            
+            <div id="includedStudentsArea" style="min-height: 60px; border: 2px dashed var(--line); border-radius: 8px; padding: 10px; margin-bottom: 15px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; background: rgba(0,0,0,0.02);"
+                 ondragover="event.preventDefault();" ondragenter="event.preventDefault();" ondrop="handleDrop(event)">
+              <div id="dragPlaceholder" style="color: #999; width: 100%; text-align: center; pointer-events: none;">Listeden buraya öğrenci sürükleyin</div>
+            </div>
+            
+            <div class="table-like-container" style="width:100%; max-width:900px; margin:0 auto; overflow-x:auto; border: 1px solid var(--line); border-radius: 8px; padding: 10px; background: var(--card-bg); display:none;" id="chartWrapper">
+              <div id="chartContainer" style="min-width: 800px; height: 400px;">
+                <canvas id="studentPerformanceChart"></canvas>
+              </div>
+            </div>
+            <div class="empty" id="emptyChartMsg">Gösterilecek öğrenci veya veri yok.</div>
+          </div>
+          
+          <div class="panel" style="display: flex; flex-direction: column; height: 100%; max-height: 600px;">
+            <div class="panel-title">Sınıf Listesi</div>
+            <div class="panel-sub" style="margin-bottom: 10px;">Arayın ve grafiğe sürükleyin.</div>
+            <input type="text" id="graphStudentSearch" placeholder="Öğrenci ara..." style="margin-bottom: 15px; width: 100%; padding: 8px; border-radius: 4px; border: 1px solid var(--line);" />
+            
+            <div id="draggableStudentList" style="flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding-right: 5px;">
+              <!-- Sürüklenebilir öğrenciler JS ile dolacak -->
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="view" id="view-live">
+        <div class="page-head">
+          <div>
+            <h1>🎥 Canlı Ders Kontrolü</h1>
+            <p class="muted">Zoom/Meet linki ile anlık yoklama alın ve sürpriz quiz yapın.</p>
+          </div>
+          <div class="chip" id="liveClassChip">Sınıf: —</div>
+        </div>
+
+        <div class="grid-2">
+          <div class="panel" id="liveStartPanel">
+            <div class="panel-title">Ders Başlat</div>
+            <div class="panel-sub">Sınıfınız için bir canlı yayın linki (Zoom/Meet vs.) ekleyin.</div>
+            <form id="liveStartForm" class="form">
+              <div class="field">
+                <label for="liveLink">Canlı Ders Linki</label>
+                <input id="liveLink" type="url" placeholder="https://zoom.us/j/... veya meet.google.com/..." required />
+              </div>
+              <button class="btn primary block" type="submit">Dersi Başlat ve Paylaş</button>
+            </form>
+          </div>
+
+          <div class="panel" id="liveActivePanel" hidden>
+            <div class="panel-title" style="color:#ef4444; display:flex; align-items:center; gap:8px;">
+              <span style="display:inline-block; width:12px; height:12px; background:#ef4444; border-radius:50%; animation: pulse 2s infinite;"></span>
+              Yayındasınız!
+            </div>
+            <div class="panel-sub" style="margin-bottom:15px;">Ders şu an devam ediyor. Öğrenciler derse katılabilir.</div>
+            <a href="#" id="activeLiveLink" target="_blank" class="btn block" style="background:#f1f5f9; color:#1e3a5f; border:1px solid #cbd5e1; margin-bottom:10px;">Bağlantıya Kendin Git</a>
+            <button class="btn ghost block" id="endLiveBtn" style="color:#ef4444; margin-bottom:15px; border-color:#fca5a5; background:#fef2f2;">Dersi Bitir</button>
+            
+            <div class="split"></div>
+            
+            <div class="panel-title">Hızlı Quiz Gönder</div>
+            <div class="panel-sub">Dersteki öğrencilerin ekranına anında pop-up soru düşer.</div>
+            <form id="liveQuizForm" class="form">
+              <div class="field">
+                <label for="quizQuestion">Soru</label>
+                <input id="quizQuestion" type="text" placeholder="Örn: En büyük asal rakam kaçtır?" required />
+              </div>
+              <div class="field">
+                <label for="quizOpts">Şıklar</label>
+                <input id="quizOpts" type="text" placeholder="A)py B)cs C)js" required />
+              </div>
+              <div class="field">
+                <label for="quizCorrectAnswer">Doğru Cevap Şıkkı</label>
+                <input id="quizCorrectAnswer" type="text" placeholder="Örn: C) 11" required />
+                <div style="font-size:11px; color:#64748b; margin-top:4px;">Yukarıda yazdığınız şıklardan doğru olanını birebir buraya yazın.</div>
+              </div>
+              <button class="btn primary block" type="submit">Hemen Gönder</button>
+              <div class="alert" id="quizStatus" hidden></div>
+            </form>
+          </div>
+
+          <div class="panel">
+            <div class="panel-title">Yoklama (Anlık) & Quiz Yanıtları</div>
+            <div class="panel-sub" id="attendanceSub">Derse katılan öğrencileri yakından takip edin.</div>
+            
+            <div class="list" id="attendanceList"></div>
+            <div class="empty" id="emptyAttendance">Şu an ders aktif değil veya katılan yok.</div>
           </div>
         </div>
       </section>
@@ -456,6 +575,21 @@
 
         <button class="btn ghost block" id="copyClassCode" type="button">Kodu Kopyala</button>
         <div class="alert" id="copyAlert" hidden></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal" id="addMembersModal" aria-hidden="true">
+    <div class="modal-card" role="dialog" aria-modal="true">
+      <div class="modal-top">
+        <div class="modal-title">Öğrenci Ekle / Katılma İstekleri</div>
+        <button class="icon-btn" data-close="addMembersModal" aria-label="Kapat" type="button">✕</button>
+      </div>
+      <div style="padding-top: 10px;">
+        <div class="muted" style="margin-bottom:10px; font-size:13px;">Grupta olmayan sınıf üyeleri veya katılma isteği atanlar listelenir. Tıklayarak gruba alabilirsiniz.</div>
+        <div id="addMembersList" class="checkbox-container" style="max-height: 250px; overflow-y: auto; text-align: left;"></div>
+        <button class="btn primary block" id="addMembersBtn" style="margin-top: 15px;">Seçilenleri Ekle</button>
+        <div class="alert" id="addMembersAlert" hidden></div>
       </div>
     </div>
   </div>
