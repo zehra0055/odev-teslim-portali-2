@@ -523,7 +523,33 @@
       </div>
     </div>
 
+    <div class="widget-panel" id="aiPanel" hidden>
+      <div class="widget-head ai-head" style="background: linear-gradient(135deg, #4f46e5, #ec4899); color: white;">
+        <div class="w-title">🤖 Öğretmen AI Asistanı</div>
+        <button class="icon-btn w-close" id="closeAi" style="color:white;">✕</button>
+      </div>
+      <div class="ai-context-bar" id="aiContextBar" style="background:#f8fafc; padding:8px; border-bottom:1px solid #e2e8f0; font-size:12px;">
+        <span class="ai-class-chip" id="aiClassChip">📚 Sınıf seçilmedi</span>
+        <span class="ai-status-dot" title="AI Aktif" style="color:#10b981;">●</span>
+      </div>
+      <div class="ai-quick-actions" id="aiQuickActions" style="padding:10px; display:flex; flex-direction:column; gap:8px;">
+        <button class="ai-quick-btn block" style="background:linear-gradient(to right, #10b981, #059669); color:white; font-weight:bold; border:none; padding:10px; border-radius:8px; cursor:pointer;" data-question="Seçili sınıfımın genel bir analizini yap. Teslim oranları nasıl, hangi derslerde veya ödevlerde öğrenciler daha çok zorlanmış? Bana sınıfın analiz raporunu sun.">📊 Sınıf Analizi Raporu</button>
+        <button class="ai-quick-btn block" style="background:linear-gradient(to right, #6366f1, #4f46e5); color:white; font-weight:bold; border:none; padding:10px; border-radius:8px; cursor:pointer;" data-question="Sınıfta teslimleri en çok geciktiren veya hiç yapmayan riskli öğrenciler var mı?">⚠️ Riskli Öğrenciler</button>
+      </div>
+      <div class="widget-body" id="aiBody" style="flex:1; overflow-y:auto; padding:15px; background:#f8fafc; display:flex; flex-direction:column; gap:12px;">
+        <div class="w-msg others ai-msg" style="align-self:flex-start; max-width:85%;">
+          <span class="w-sender" style="font-size:11px; color:#64748b;">Portal Asistanı</span>
+          <div class="w-bubble" style="background:white; padding:10px; border-radius:12px; box-shadow:0 2px 4px rgba(0,0,0,0.05);">Merhaba Hocam! Sınıfınızın verilerini analiz edebilirim. Yukarıdaki rapor butonlarını kullanabilirsiniz.</div>
+        </div>
+      </div>
+      <div class="widget-footer" style="padding:10px; display:flex; gap:8px; border-top:1px solid #e2e8f0; background:white;">
+        <input type="text" id="aiInput" placeholder="Asistana soru sorun..." style="flex:1; padding:8px; border:1px solid #cbd5e1; border-radius:6px;" />
+        <button class="btn ai-btn" id="sendAiBtn" style="background:#4f46e5; color:white; border:none; border-radius:6px; padding:0 15px; cursor:pointer;">Sor</button>
+      </div>
+    </div>
+
     <div class="widget-triggers">
+      <button class="trigger-btn ai-trigger" id="aiBtn" title="AI Asistanı" style="background:linear-gradient(135deg, #4f46e5, #ec4899); color:white; border-radius:50%; width:50px; height:50px; border:none; cursor:pointer; font-size:24px; box-shadow:0 4px 6px rgba(0,0,0,0.1); margin-bottom:10px;">🤖</button>
       <button class="trigger-btn chat-trigger" id="chatBtn" title="Gelen Kutusu">💬 <span class="badge" id="chatBadge" hidden>0</span></button>
     </div>
   </div>
@@ -595,5 +621,23 @@
   </div>
 
   <script src="ogretmen.js" defer></script>
+  <!-- YENİ: Performans Düzenleme Modalı -->
+  <div class="modal" id="perfOverrideModal" aria-hidden="true">
+    <div class="modal-box" style="max-width: 400px;">
+      <button class="close-btn" data-close="perfOverrideModal">&times;</button>
+      <div class="modal-title" style="margin-bottom:8px;">✨ Performans Notunu Düzenle</div>
+      <div class="modal-sub" id="perfOverrideStudentName" style="margin-bottom:16px;">Öğrenci Adı</div>
+      <form id="perfOverrideForm">
+        <input type="hidden" id="perfOverrideStudentId" />
+        <div class="field">
+          <label>Yapay Zeka veya Sizin Notunuz (0-100)</label>
+          <input type="number" id="perfOverrideScore" min="0" max="100" required />
+        </div>
+        <div class="alert" id="perfOverrideAlert" hidden></div>
+        <button class="btn primary block" type="submit">Notu Kaydet</button>
+      </form>
+    </div>
+  </div>
+
 </body>
 </html>

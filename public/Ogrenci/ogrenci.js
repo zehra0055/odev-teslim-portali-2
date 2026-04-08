@@ -522,13 +522,16 @@ async function sendPrivateChat() {
   loadPrivateChat();
 }
 
-async function askAI() {
+async function askAI(questionOverride) {
   const inp = document.getElementById("aiInput");
   const body = document.getElementById("aiBody");
-  if(!inp || !inp.value.trim()) return;
+  const question = questionOverride || (inp ? inp.value.trim() : "");
+  if(!question) return;
   
-  const question = inp.value.trim();
-  inp.value = "";
+  if(inp) inp.value = "";
+  
+  // Bağlı sınıf etiketini güncelle
+  updateAIClassChip();
   
   const uDiv = document.createElement("div"); 
   uDiv.className = "w-msg mine"; 
@@ -539,30 +542,53 @@ async function askAI() {
     const typingDiv = document.createElement("div"); 
     typingDiv.id = tId;
     typingDiv.className = "w-msg others ai-msg";
-    typingDiv.innerHTML = `<span class="w-sender">AI Asistanı</span><div class="w-bubble">Düşünüyorum... ⏳</div>`;
+    typingDiv.innerHTML = `<span class="w-sender">Portal Asistanı</span><div class="w-bubble"><span class="ai-typing-dots">Düşünüyorum<span>.</span><span>.</span><span>.</span></span> 🧠</div>`;
     body.appendChild(typingDiv);
     body.scrollTop = body.scrollHeight;
 
+    // Sor butonunu devre dışı bırak
+    const sendBtn = document.getElementById("sendAiBtn");
+    if(sendBtn) { sendBtn.disabled = true; sendBtn.textContent = "⏳"; }
+
     try {
-      const data = await apiFetch("/api/ai/ask", { method: "POST", body: JSON.stringify({ prompt: question }) });
+      // 6. Hafta: classId'yi de gönderiyoruz
+      const data = await apiFetch("/api/ai/ask", { 
+        method: "POST", 
+        body: JSON.stringify({ prompt: question, classId: activeClassId || "" }) 
+      });
       const el = document.getElementById(tId);
       if(el) el.remove();
       
-      let formattedReply = (data.reply || "").replace(/\*\*(.*?)\*\*/g, '<b>$1</b>');
+      // Markdown formatlamayı iyileştir
+      let formattedReply = (data.reply || "")
+        .replace(/\*\*(.*?)\*\*/g, '<b>$1</b>')
+        .replace(/\*(.*?)\*/g, '<i>$1</i>')
+        .replace(/\n/g, '<br>');
 
       const aDiv = document.createElement("div"); 
       aDiv.className = "w-msg others ai-msg";
-      aDiv.innerHTML = `<span class="w-sender">AI Asistanı</span><div class="w-bubble">${formattedReply}</div>`;
+      aDiv.innerHTML = `<span class="w-sender">Portal Asistanı</span><div class="w-bubble">${formattedReply}</div>`;
       body.appendChild(aDiv); 
       body.scrollTop = body.scrollHeight;
     } catch (error) {
       const el = document.getElementById(tId);
       if(el) el.remove();
       const errDiv = document.createElement("div"); errDiv.className = "w-msg others ai-msg";
-      errDiv.innerHTML = `<span class="w-sender">AI Asistanı</span><div class="w-bubble" style="color:red;">Bağlantı hatası oluştu.</div>`;
+      errDiv.innerHTML = `<span class="w-sender">Portal Asistanı</span><div class="w-bubble" style="color:#ef4444;">Bağlantı hatası oluştu. Lütfen tekrar dene.</div>`;
       body.appendChild(errDiv);
+    } finally {
+      if(sendBtn) { sendBtn.disabled = false; sendBtn.textContent = "Sor"; }
     }
   }
+}
+
+// 6. Hafta: AI bağlı sınıf göstergesi güncelleme
+function updateAIClassChip() {
+  const chip = document.getElementById("aiClassChip");
+  if(!chip) return;
+  const cls = myClassesCache.find(c => c.id === activeClassId);
+  chip.textContent = cls ? `📚 ${cls.name}` : "📚 Sınıf seçilmedi";
+  chip.title = cls ? `AI bu sınıfın verilerine erişebilir` : "Sınıf seçince AI daha akıllı cevaplar verir";
 }
 
 // ========= UI =========
@@ -1009,6 +1035,17 @@ async function refreshAll(){
       
       const data = await apiFetch(`/api/classes/members?classId=${activeClassId}`);
       classMembersCache = data.members || [];
+      
+      const perfData = await apiFetch(`/api/student/performance?classId=${activeClassId}`);
+      const perfElement = document.getElementById("myPerfScore");
+      const badgeElement = document.getElementById("myPerfBadges");
+      
+      if(perfData && perfData.performance && perfElement && badgeElement) {
+        const perf = perfData.performance;
+        perfElement.textContent = perf.score;
+        badgeElement.innerHTML = perf.badges.map(b => `<span class="pill" style="background:#fff; color:#b45309; border:1px solid #fde68a; font-weight:900; box-shadow:0 1px 3px rgba(0,0,0,0.05); font-size:12px; padding:4px 10px;">${b}</span>`).join(" ");
+      }
+
     } catch (e) {
       console.error(e);
       assignmentsCache = [];
@@ -1060,8 +1097,17 @@ document.addEventListener("DOMContentLoaded", () => {
   if(aiBtn) aiBtn.addEventListener('click', () => { 
     if(aiPanel) aiPanel.hidden = false; 
     if(chatPanel) chatPanel.hidden = true; 
+    updateAIClassChip(); // 6. Hafta: Sınıf bilgisini güncelle
   });
   if(closeAi) closeAi.addEventListener('click', () => { if(aiPanel) aiPanel.hidden = true; });
+
+  // 6. Hafta: Hızlı soru butonları
+  document.querySelectorAll('.ai-quick-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const q = btn.getAttribute('data-question');
+      if(q) askAI(q);
+    });
+  });
 
   const privateChatInput = document.getElementById("privateChatInput");
   const sendPrivateChatBtn = document.getElementById("sendPrivateChatBtn");
@@ -1071,7 +1117,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const aiInput = document.getElementById("aiInput");
   const sendAiBtn = document.getElementById("sendAiBtn");
   if(aiInput) aiInput.addEventListener("keypress", (e) => { if(e.key === 'Enter') askAI(); });
-  if(sendAiBtn) sendAiBtn.addEventListener("click", askAI);
+  if(sendAiBtn) sendAiBtn.addEventListener("click", () => askAI());
 
   // YENİ: Grup Ayarları Eventleri
   document.getElementById("openGroupSettingsBtn")?.addEventListener("click", () => {
@@ -1169,6 +1215,57 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 });
+
+// ==========================================
+// EKRAN VE ODAK TAKİP SİSTEMİ (SCREEN TRACKING)
+// ==========================================
+let trackTotalSeconds = 0;
+let trackActiveSeconds = 0;
+let trackDistractSeconds = 0;
+
+let isWindowFocused = true;
+let lastInteractionTime = Date.now();
+
+// Olay dinleyiciler
+window.addEventListener("focus", () => { isWindowFocused = true; lastInteractionTime = Date.now(); });
+window.addEventListener("blur", () => { isWindowFocused = false; });
+window.addEventListener("mousemove", () => { lastInteractionTime = Date.now(); });
+window.addEventListener("keydown", () => { lastInteractionTime = Date.now(); });
+
+setInterval(() => {
+  trackTotalSeconds++;
+  
+  // 30 saniye mause/klavye dokunulmazsa afk kalındı sayılır
+  const isIdle = (Date.now() - lastInteractionTime) > 30000; 
+  
+  if (isWindowFocused && !isIdle) {
+    trackActiveSeconds++;
+  } else {
+    trackDistractSeconds++;
+  }
+  
+  // Arayüzü güncelle
+  const elTotal = document.getElementById("trackTotalTime");
+  const elActive = document.getElementById("trackActiveTime");
+  const elDistract = document.getElementById("trackDistractTime");
+  const elAi = document.getElementById("trackAiComment");
+  
+  if (elTotal) elTotal.textContent = Math.floor(trackTotalSeconds / 60) + "dk " + (trackTotalSeconds % 60) + "sn";
+  if (elActive) elActive.textContent = Math.floor(trackActiveSeconds / 60) + "dk " + (trackActiveSeconds % 60) + "sn";
+  if (elDistract) elDistract.textContent = Math.floor(trackDistractSeconds / 60) + "dk " + (trackDistractSeconds % 60) + "sn";
+  
+  // Yapay Zeka Yorumu Güncellemesi (Her 5 saniyede bir değerlendir fakat mesaj okunaklı kalsın)
+  if (elAi && trackTotalSeconds > 10) {
+    const distractRatio = trackDistractSeconds / trackTotalSeconds;
+    if (distractRatio > 0.5) {
+      elAi.innerHTML = "<span style='color:#f43f5e;'>Aklın başka yerde gibi! 📵 Başka sekmelerde geziniyor veya AFK kalıyor olabilirsin. Hemen derse dön!</span>";
+    } else if (distractRatio > 0.2) {
+      elAi.innerHTML = "<span style='color:#f59e0b;'>Dikkat dağınıklığın biraz artıyor. ☕ Ufak bir su/kahve molası iyi gelebilir.</span>";
+    } else {
+      elAi.innerHTML = "<span style='color:#10b981;'>Harika gidiyorsun! 🚀 Saf odaklanma oranının yüksek olması ödevlerinde sana başarı getirecektir.</span>";
+    }
+  }
+}, 1000);
 
 // ========= init =========
 (async function boot(){

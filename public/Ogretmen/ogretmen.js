@@ -833,13 +833,41 @@ function renderStudentList() {
     if (m.status === "active") statusPill = `<span class="pill active-status">Aktif</span>`;
     else if (m.status === "idle") statusPill = `<span class="pill idle-status">Pasif</span>`;
 
+    const perf = m.performance || { score: "-", average: "-", badges: [] };
+    const badgesHtml = perf.badges.map(b => `<span class="pill" style="background:#fef3c7; color:#b45309; border:1px solid #fde68a; font-size:10px; padding:2px 6px;">${b}</span>`).join(" ");
+    const pbScoreColor = perf.score >= 85 ? "linear-gradient(135deg, #10b981, #059669)" : (perf.score >= 60 ? "linear-gradient(135deg, #3b82f6, #2563eb)" : "linear-gradient(135deg, #f43f5e, #e11d48)");
+
     el.innerHTML = `
-      <div class="leftcol">
-        <div class="titleline">${m.studentName}</div>
-        <div class="subline">Katılım: ${fmtDate(m.joinedAt)}</div>
+      <div class="leftcol" style="flex:1;">
+        <div class="titleline" style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+          ${m.studentName} 
+          <span class="pt-editable" style="cursor:pointer; font-size:12px; font-weight:900; background:${pbScoreColor}; color:white; padding:4px 10px; border-radius:20px; box-shadow:0 4px 10px rgba(0,0,0,0.15); border: 1px solid rgba(255,255,255,0.2); transition:all 0.2s ease;" title="Tıklayıp Düzenle">✨ PN: ${perf.score} ✎</span>
+          <span style="font-size:11px; font-weight:900; color:#475569; background:#f1f5f9; padding:4px 8px; border-radius:12px;" title="Ödevlerin Ortalaması">Genel Ort: ${perf.average}</span>
+        </div>
+        <div class="subline" style="margin-top:8px; display:flex; gap:6px; flex-wrap:wrap; align-items:center;">
+          ${badgesHtml}
+        </div>
       </div>
-      <div>${statusPill} <span class="pill">Üye</span></div>
+      <div style="display:flex; flex-direction:column; align-items:flex-end; gap:6px;">
+        ${statusPill}
+        <span style="font-size:10px; color:var(--muted); font-weight:bold;">${fmtDate(m.joinedAt)}</span>
+      </div>
     `;
+
+    // Performans Notunu Düzenleme
+    const ptBadge = el.querySelector(".pt-editable");
+    if(ptBadge) {
+      ptBadge.addEventListener("click", () => {
+        document.getElementById("perfOverrideStudentName").textContent = m.studentName;
+        document.getElementById("perfOverrideStudentId").value = m.studentId;
+        document.getElementById("perfOverrideScore").value = perf.score;
+        clearAlert(document.getElementById("perfOverrideAlert"));
+        openModal(document.getElementById("perfOverrideModal"));
+      });
+      ptBadge.addEventListener("mouseover", () => ptBadge.style.transform = "scale(1.05)");
+      ptBadge.addEventListener("mouseout", () => ptBadge.style.transform = "scale(1)");
+    }
+
     studentList.appendChild(el);
   });
 
@@ -1137,6 +1165,44 @@ filterStatus?.addEventListener("change", () => renderSubmissionList());
 
 clearSelectionBtn?.addEventListener("click", clearSelection);
 saveReviewBtn?.addEventListener("click", saveReview);
+
+// Performans Override Kaydet
+const perfForm = document.getElementById("perfOverrideForm");
+if(perfForm) {
+  perfForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const alertEl = document.getElementById("perfOverrideAlert");
+    clearAlert(alertEl);
+    
+    const studentId = document.getElementById("perfOverrideStudentId").value;
+    const score = document.getElementById("perfOverrideScore").value;
+    
+    if(!activeClassId || !studentId) return;
+    
+    const btn = perfForm.querySelector('button[type="submit"]');
+    btn.disabled = true;
+    btn.textContent = "Kaydediliyor...";
+    
+    try {
+      await apiFetch("/api/teacher/performance-override", {
+        method: "PUT",
+        body: JSON.stringify({ classId: activeClassId, studentId, score })
+      });
+      setAlert(alertEl, "ok", "Not başarıyla güncellendi.");
+      setTimeout(() => {
+        closeModal(document.getElementById("perfOverrideModal"));
+        btn.disabled = false;
+        btn.textContent = "Notu Kaydet";
+        populateGroupSettings(); // Refresh list to get fresh items
+        renderStudentList();
+      }, 800);
+    } catch(err) {
+      setAlert(alertEl, "err", err.message || "Hata oluştu.");
+      btn.disabled = false;
+      btn.textContent = "Notu Kaydet";
+    }
+  });
+}
 
 // Chat & Bildirim & Gruplar UI Eventleri
 document.addEventListener("DOMContentLoaded", () => {
@@ -1513,6 +1579,79 @@ function renderClassGraph() {
       }
     }
   });
+}
+
+// ========= TEACHER AI LOGIC =========
+const aiBtn = document.getElementById("aiBtn");
+const aiPanel = document.getElementById("aiPanel");
+const closeAi = document.getElementById("closeAi");
+const aiBody = document.getElementById("aiBody");
+const aiInput = document.getElementById("aiInput");
+const sendAiBtn = document.getElementById("sendAiBtn");
+const aiQuickActions = document.getElementById("aiQuickActions");
+const aiClassChip = document.getElementById("aiClassChip");
+
+if (aiBtn) aiBtn.addEventListener("click", () => {
+  aiPanel.hidden = false;
+  if(aiClassChip && activeClassId) {
+    const cls = classesCache.find(c => c.id === activeClassId);
+    if(cls) aiClassChip.textContent = "📚 Sınıf: " + cls.name;
+    else aiClassChip.textContent = "📚 Sınıf seçilmedi";
+  }
+});
+if (closeAi) closeAi.addEventListener("click", () => aiPanel.hidden = true);
+
+if (aiQuickActions) {
+  aiQuickActions.addEventListener("click", (e) => {
+    if (e.target.tagName === "BUTTON") {
+      const q = e.target.dataset.question;
+      if (q) aiAsk(q);
+    }
+  });
+}
+
+if (sendAiBtn) sendAiBtn.addEventListener("click", () => {
+  if (aiInput.value.trim()) {
+    aiAsk(aiInput.value.trim());
+    aiInput.value = "";
+  }
+});
+if (aiInput) aiInput.addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && aiInput.value.trim()) {
+    aiAsk(aiInput.value.trim());
+    aiInput.value = "";
+  }
+});
+
+async function aiAsk(promptText) {
+  aiBody.innerHTML += `<div class="w-msg mine"><div class="w-bubble">${promptText}</div></div>`;
+  aiBody.scrollTop = aiBody.scrollHeight;
+
+  try {
+    const data = await apiFetch("/api/ai/ask", {
+      method: "POST",
+      body: JSON.stringify({ prompt: promptText, classId: activeClassId })
+    });
+    
+    // Convert newlines to breaks
+    const replyFormat = (data.reply || "").replace(/\n/g, "<br>");
+    
+    aiBody.innerHTML += `
+      <div class="w-msg others ai-msg" style="align-self:flex-start; max-width:85%;">
+        <span class="w-sender" style="font-size:11px; color:#64748b;">Portal Asistanı</span>
+        <div class="w-bubble" style="background:white; padding:10px; border-radius:12px; box-shadow:0 2px 4px rgba(0,0,0,0.05);">${replyFormat}</div>
+      </div>
+    `;
+    aiBody.scrollTop = aiBody.scrollHeight;
+  } catch(e) {
+    aiBody.innerHTML += `
+      <div class="w-msg others ai-msg" style="align-self:flex-start; max-width:85%;">
+        <span class="w-sender" style="font-size:11px; color:#64748b;">Portal Asistanı</span>
+        <div class="w-bubble" style="background:#fee2e2; color:#b91c1c; padding:10px; border-radius:12px;">Hata: ${e.message}</div>
+      </div>
+    `;
+    aiBody.scrollTop = aiBody.scrollHeight;
+  }
 }
 
 // ========= BOOT =========

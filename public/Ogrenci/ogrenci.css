@@ -464,8 +464,8 @@ input:focus, textarea:focus, select:focus{
 .ai-trigger { background: var(--ai-color); color: white; }
 
 .widget-panel {
-  width: 340px;
-  height: 450px;
+  width: 440px;
+  height: 600px;
   background: #fff;
   border-radius: 16px;
   box-shadow: 0 15px 40px rgba(0,0,0,0.15);
@@ -531,6 +531,79 @@ input:focus, textarea:focus, select:focus{
 .w-msg.ai-msg .w-bubble {
   border: 1px solid rgba(99,102,241,.3);
   background: rgba(99,102,241,.05);
+}
+
+/* 6. Hafta: AI Context Bar & Quick Actions */
+.ai-context-bar {
+  padding: 8px 14px;
+  background: rgba(99,102,241,.06);
+  border-bottom: 1px solid rgba(99,102,241,.15);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.ai-class-chip {
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--ai-color);
+  background: rgba(99,102,241,.12);
+  padding: 4px 10px;
+  border-radius: 99px;
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ai-status-dot {
+  color: #22c55e;
+  font-size: 14px;
+  animation: aiPulse 2s infinite;
+}
+@keyframes aiPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+.ai-quick-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--line);
+  background: #fff;
+}
+.ai-quick-btn {
+  font-size: 11px;
+  font-weight: 800;
+  padding: 5px 10px;
+  border-radius: 20px;
+  border: 1px solid rgba(99,102,241,.25);
+  background: rgba(99,102,241,.06);
+  color: var(--ai-color);
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+.ai-quick-btn:hover {
+  background: var(--ai-color);
+  color: #fff;
+  border-color: var(--ai-color);
+  transform: scale(1.03);
+}
+
+/* AI Typing Animation */
+.ai-typing-dots span {
+  animation: aiDots 1.4s infinite;
+  opacity: 0;
+}
+.ai-typing-dots span:nth-child(1) { animation-delay: 0s; }
+.ai-typing-dots span:nth-child(2) { animation-delay: 0.2s; }
+.ai-typing-dots span:nth-child(3) { animation-delay: 0.4s; }
+@keyframes aiDots {
+  0%, 20% { opacity: 0; }
+  50% { opacity: 1; }
+  100% { opacity: 0; }
 }
 
 .widget-footer {

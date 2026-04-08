@@ -109,6 +109,46 @@
         </div>
 
         <div class="grid-2">
+          
+          <!-- YENİ: Öğrenci Ekran Takip ve Odak Analizi Sistemi -->
+          <div class="panel" style="grid-column: 1 / -1; background:linear-gradient(135deg, rgba(255,255,255,0.9), rgba(238,242,255,0.9)); border-left:4px solid #6366f1;">
+            <div class="panel-title" style="display:flex; align-items:center; gap:8px; color:#312e81;">
+              🧭 Odak ve Süre Takip Asistanı
+            </div>
+            <div class="panel-sub">Sınav ve ödev başarınız için portal üzerinde geçirdiğiniz verimli süreleri ve dikkat dağıtıcı unsurları (örneğin sekmeden ayrılmaları) analiz ediyoruz.</div>
+            
+            <div style="display:flex; gap:20px; margin-top:16px; flex-wrap:wrap; justify-content:space-between;">
+              <div style="display:flex; align-items:center; gap:16px;">
+                <!-- Süre Kutusı -->
+                <div style="background:#fff; padding:12px 16px; border-radius:12px; box-shadow:0 2px 8px rgba(0,0,0,0.05); text-align:center; min-width:100px;">
+                  <div style="font-size:24px; font-weight:900; color:#4f46e5;" id="trackTotalTime">0dk 0sn</div>
+                  <div style="font-size:11px; font-weight:800; color:var(--muted); margin-top:2px;">💻 Portalda Geçen</div>
+                </div>
+                <!-- Odak Kutusu -->
+                <div style="background:#fff; padding:12px 16px; border-radius:12px; box-shadow:0 2px 8px rgba(0,0,0,0.05); text-align:center; min-width:100px;">
+                  <div style="font-size:24px; font-weight:900; color:#10b981;" id="trackActiveTime">0dk 0sn</div>
+                  <div style="font-size:11px; font-weight:800; color:var(--muted); margin-top:2px;">🎯 Saf Odak (Çalışma)</div>
+                </div>
+                <!-- Dağınıklık Kutusu -->
+                <div style="background:#fff; padding:12px 16px; border-radius:12px; box-shadow:0 2px 8px rgba(0,0,0,0.05); text-align:center; min-width:100px;">
+                  <div style="font-size:24px; font-weight:900; color:#f43f5e;" id="trackDistractTime">0dk 0sn</div>
+                  <div style="font-size:11px; font-weight:800; color:var(--muted); margin-top:2px;">📵 Dikkat Dağınıklığı</div>
+                </div>
+              </div>
+              
+              <!-- Yapay Zeka Yorumu -->
+              <div style="flex:1; min-width:250px; background:rgba(255,255,255,0.6); padding:12px; border-radius:12px; border:1px dashed #cbd5e1; display:flex; align-items:center; gap:12px;">
+                <div style="font-size:32px;">🤖</div>
+                <div>
+                  <div style="font-size:12px; font-weight:800; color:#475569; margin-bottom:4px;">Yapay Zeka Yorumu:</div>
+                  <div style="font-size:13px; font-weight:bold; color:#1e293b; line-height:1.4;" id="trackAiComment">
+                    Analiz başlatılıyor... Portalı kullanmaya devam edin.
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
           <div class="panel">
             <div class="panel-title">Yaklaşan Ödevler</div>
             <div class="panel-sub">Seçili sınıfın ödevleri.</div>
@@ -390,10 +430,22 @@
         <div class="w-title">🤖 Yapay Zeka Asistanı</div>
         <button class="icon-btn w-close" id="closeAi">✕</button>
       </div>
+      <div class="ai-context-bar" id="aiContextBar">
+        <span class="ai-class-chip" id="aiClassChip">📚 Sınıf seçilmedi</span>
+        <span class="ai-status-dot" title="AI Aktif">●</span>
+      </div>
+      <div class="ai-quick-actions" id="aiQuickActions">
+        <button class="ai-quick-btn" style="background:linear-gradient(to right, #10b981, #059669); color:white; font-weight:bold; flex-basis:100%; justify-content:center;" data-question="Bana bugün neler yaptığımın detaylı raporunu ve yarınki önceliklerimi çıkar. Eğer zaman yönetiminde bir hatam veya eksiğim varsa analiz et.">📝 Günün Raporunu & Davranış Analizini Getir</button>
+        <button class="ai-quick-btn" style="background:linear-gradient(to right, #6366f1, #4f46e5); color:white; font-weight:bold; flex-basis:100%; justify-content:center;" data-question="Şu anki ödev yüküme ve notlarıma göre HANGİ ödevden başlamalıyım? Lütfen bana stratejik bir öncelik sırası oluştur.">🎯 Hangi Ödevden Başlamalıyım?</button>
+        <button class="ai-quick-btn" data-question="Ödevlerimi listele">📋 Ödevlerim</button>
+        <button class="ai-quick-btn" data-question="Not ortalamamı göster">📊 Notlarım</button>
+        <button class="ai-quick-btn" data-question="Yaklaşan ödevlerim hangileri?">⏰ Yaklaşanlar</button>
+        <button class="ai-quick-btn" data-question="Teslim etmediğim ödevler var mı?">❓ Eksiklerim</button>
+      </div>
       <div class="widget-body" id="aiBody">
         <div class="w-msg others ai-msg">
-          <span class="w-sender">Sistem Asistanı</span>
-          <div class="w-bubble">Merhaba! 🌟 Bugün sana ödevlerinde nasıl yardımcı olabilirim? Konu anlatımı mı istersin, yoksa ipucu mu?</div>
+          <span class="w-sender">Portal Asistanı</span>
+          <div class="w-bubble">Merhaba! 🌟 Ben senin portal asistanınım. Ödevlerin, notların ve sınıf bilgilerin hakkında sorular sorabilirsin.<br><br>👆 Yukarıdaki hızlı butonlara tıklayarak başlayabilirsin!</div>
         </div>
       </div>
       <div class="widget-footer">

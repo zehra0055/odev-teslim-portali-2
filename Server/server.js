@@ -8,9 +8,9 @@ const bcrypt = require("bcrypt");
 const nodemailer = require("nodemailer");
 const multer = require("multer");
 
-// YENİ: Yapay Zeka Kurulumu
-const { GoogleGenerativeAI } = require("@google/generative-ai");
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "DUMMY_KEY");
+// YENİ: Yapay Zeka Kurulumu (Groq API)
+const Groq = require("groq-sdk");
+const groq = new Groq({ apiKey: process.env.GROQ_API_KEY || "DUMMY_KEY" });
 
 console.log("SERVER.JS LOADED ✅ (IN-MEMORY + BİLDİRİM + CHAT + AI + GRUPLAR)", __filename);
 
@@ -61,7 +61,8 @@ const db = {
   notifications: [], // YENİ: Bildirim havuzu
   messages: [],      // YENİ: Sohbet havuzu
   groups: [],        // YENİ: Öğrenci çalışma grupları
-  group_messages: [] // YENİ: Grup içi mesajlaşmalar
+  group_messages: [], // YENİ: Grup içi mesajlaşmalar
+  performanceOverrides: [] // YENİ: Öğretmen Performans Notları
 };
 
 // ============================
@@ -338,23 +339,225 @@ app.post("/api/chat", authRequired, (req, res) => {
   res.json({ ok: true, message: msg });
 });
 
-// 4. Gerçek Yapay Zeka (Gemini API)
+// YENİ: Öğrenci Performans & Rozet Hesaplama Fonksiyonu
+function calcStudentPerformance(classId, studentId) {
+  const asgn = db.assignments.filter(a => a.classId === classId);
+  const subs = db.submissions.filter(s => s.classId === classId && s.studentId === studentId);
+  
+  if (asgn.length === 0) return { score: 100, badges: ["🎯 Yeni Başlangıç"] };
+  
+  let score = 50; 
+  let lateCount = 0;
+  let missingCount = 0;
+  let gradedCount = 0;
+  let totalGrade = 0;
+
+  asgn.forEach(a => {
+    const sub = subs.find(s => s.assignmentId === a.id) || subs.find(s => s.title === a.title);
+    if (!sub) {
+      if (a.due && new Date(a.due) < new Date(new Date().setHours(0,0,0,0))) {
+        missingCount++;
+        score -= 10;
+      }
+    } else {
+      if (a.due && sub.submittedAt) {
+        const dDue = new Date(a.due).setHours(23,59,59,999);
+        if (new Date(sub.submittedAt).getTime() > dDue) {
+          lateCount++;
+          score -= 5;
+        } else {
+          score += 3; 
+        }
+      } else {
+        score += 3;
+      }
+      
+      if (sub.status === "graded" && sub.grade) {
+        gradedCount++;
+        const g = Number(sub.grade);
+        totalGrade += g;
+        if (g >= 85) score += 5;
+        else if (g >= 50) score += 2;
+        else score -= 3;
+      } else {
+        score += 2;
+      }
+    }
+  });
+
+  score = Math.floor(score);
+  if (score > 100) score = 100;
+  if (score < 0) score = 0;
+
+  const average = gradedCount > 0 ? (totalGrade / gradedCount) : 0;
+  const badges = [];
+
+  if (subs.length > 0 && lateCount === 0 && missingCount === 0) badges.push("⏰ Zaman Şampiyonu");
+  if (subs.length === asgn.length) badges.push("🚀 Görev Adamı");
+  if (average >= 85) badges.push("🌟 Yıldız Öğrenci");
+  if (score >= 90) badges.push("👑 Sistem Lideri");
+  if (badges.length === 0) badges.push("🌱 Gelişiyor");
+
+  // YENİ: Öğretmenin girdiği manuel override kontrolü
+  const override = (db.performanceOverrides || []).find(o => o.classId === classId && o.studentId === studentId);
+  if (override) {
+    score = override.score;
+  }
+
+  return { score, badges, average: average.toFixed(0) };
+}
+
+// 4. AI Bağlam Toplama Fonksiyonu (6. Hafta: Veri ve İçerik Tanımlama)
+function buildAIContext(userId, classId, role = "student") {
+  const ctx = { className: null, courses: [], assignments: [], submissions: [], studentProfile: {}, classProfile: null };
+
+  if (!classId) return ctx;
+
+  // Sınıf bilgisi
+  const cls = db.classes.find(c => c.id === classId);
+  if (cls) {
+    ctx.className = cls.name;
+    ctx.courses = cls.courses || [];
+  }
+
+  // Ödevler
+  const assignments = db.assignments.filter(a => a.classId === classId);
+  ctx.assignments = assignments.map(a => ({
+    title: a.title, course: a.course, desc: a.desc,
+    due: a.due, createdAt: a.createdAt
+  }));
+
+  // Teslimler
+  let subs = [];
+  if (role === "teacher") {
+    subs = db.submissions.filter(s => s.classId === classId);
+  } else {
+    subs = db.submissions.filter(s => s.classId === classId && s.studentId === userId);
+  }
+
+  ctx.submissions = subs.map(s => ({
+    course: s.course, title: s.title, status: s.status,
+    grade: s.grade, feedback: s.feedback, submittedAt: s.submittedAt
+  }));
+
+  // Öğrenci profili
+  const gradedSubs = subs.filter(s => s.status === "graded" && s.grade !== "" && s.grade !== null);
+  const avg = gradedSubs.length > 0
+    ? Math.round(gradedSubs.reduce((sum, s) => sum + Number(s.grade), 0) / gradedSubs.length)
+    : null;
+
+  ctx.studentProfile = {
+    totalAssignments: assignments.length,
+    submittedCount: subs.length,
+    pendingCount: subs.filter(s => s.status === "pending").length,
+    gradedCount: gradedSubs.length,
+    notSubmittedCount: (role === "student") ? (assignments.length - subs.length) : 0,
+    averageGrade: avg
+  };
+
+  if (role === "teacher") {
+    ctx.classProfile = {
+      totalSubmissions: subs.length,
+      averageClassGrade: avg
+    };
+  }
+
+  return ctx;
+}
+
+// 5. AI Bağlam API (Öğretmen/Admin erişimi için)
+app.get("/api/ai/context/:classId", authRequired, (req, res) => {
+  const ctx = buildAIContext(req.auth.userId, req.params.classId, req.auth.role);
+  res.json({ ok: true, context: ctx });
+});
+
+// 6. Gerçek Yapay Zeka — Bağlam Zenginleştirilmiş (Groq API)
 app.post("/api/ai/ask", authRequired, async (req, res) => {
   try {
-    const { prompt } = req.body;
+    const { prompt, classId } = req.body;
     
-    if (!process.env.GEMINI_API_KEY || process.env.GEMINI_API_KEY === "DUMMY_KEY") {
-       return res.json({ ok: true, reply: "Sistemde ücretsiz yapay zeka (Gemini) API anahtarı tanımlanmamış. .env dosyasına anahtar eklendiğinde gerçek cevaplar vermeye başlayacağım! Sorun: '" + prompt + "'" });
+    if (!process.env.GROQ_API_KEY || process.env.GROQ_API_KEY === "DUMMY_KEY") {
+       return res.json({ ok: true, reply: "Sistemde yapay zeka API anahtarı tanımlanmamış. .env dosyasına GROQ_API_KEY eklendiğinde çalışmaya başlayacağım!" });
     }
 
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-    const result = await model.generateContent(prompt + " (Sen eğitim portalındaki bir asistansın, kısa ve öz, öğrencilere yardımcı olacak şekilde Türkçe cevap ver.)");
+    // 6. Hafta: Portal verilerini topluyoruz
+    const userRole = req.auth.role;
+    const ctx = buildAIContext(req.auth.userId, classId, userRole);
+    const user = db.users.find(u => u.id === req.auth.userId);
+    const userName = user ? user.name : (userRole === "teacher" ? "Öğretmen" : "Öğrenci");
+
+    // Bağlam metnini oluşturuyoruz
+    let contextText = `\n--- PORTAL VERİLERİ (Bu bilgileri cevap verirken kullan) ---\n`;
+    contextText += `Kullanıcı Rolü: ${userRole === "teacher" ? "Eğitmen/Öğretmen" : "Öğrenci"}\n`;
+    contextText += `Kullanıcı Adı: ${userName}\n`;
     
-    res.json({ ok: true, reply: result.response.text() });
+    if (ctx.className) {
+      contextText += `Aktif Sınıf: ${ctx.className}\n`;
+      if (ctx.courses.length > 0) contextText += `Dersler: ${ctx.courses.join(", ")}\n`;
+    }
+
+    if (ctx.assignments.length > 0) {
+      contextText += `\nÖdevler (${ctx.assignments.length} adet):\n`;
+      ctx.assignments.forEach((a, i) => {
+        const dueDate = a.due ? new Date(a.due).toLocaleDateString("tr-TR") : "Belirsiz";
+        contextText += `  ${i+1}. [${a.course}] ${a.title} — Son: ${dueDate}${a.desc ? " — Açıklama: " + a.desc : ""}\n`;
+      });
+    }
+
+    if (ctx.submissions.length > 0) {
+      contextText += `\nTeslimler (${ctx.submissions.length} adet):\n`;
+      ctx.submissions.forEach((s, i) => {
+        contextText += `  ${i+1}. [${s.course}] ${s.title} — Durum: ${s.status === "graded" ? "Notlandırıldı (" + s.grade + "/100)" : "Bekliyor"}${s.feedback ? " — Geri bildirim: " + s.feedback : ""}\n`;
+      });
+    }
+
+    const p = ctx.studentProfile;
+    if (p.totalAssignments > 0) {
+      contextText += `\nÖğrenci Profili:\n`;
+      contextText += `  Toplam Ödev: ${p.totalAssignments}, Teslim Edilmiş: ${p.submittedCount}, Teslim Edilmemiş: ${p.notSubmittedCount}\n`;
+      contextText += `  Notlandırılmış: ${p.gradedCount}, Bekleyen: ${p.pendingCount}\n`;
+      if (p.averageGrade !== null) contextText += `  Not Ortalaması: ${p.averageGrade}/100\n`;
+    }
+    
+    if (userRole === "teacher" && ctx.classProfile) {
+      contextText += `\nSınıf Genel Özeti:\n`;
+      contextText += `  Sınıftaki Toplam Teslim Sayısı: ${ctx.classProfile.totalSubmissions}\n`;
+      contextText += `  Sınıf Genel Not Ortalaması: ${ctx.classProfile.averageClassGrade !== null ? ctx.classProfile.averageClassGrade : "Henüz not yok"}\n`;
+    }
+
+    contextText += `--- PORTAL VERİLERİ SONU ---\n`;
+    contextText += `Şu anki sistem tarihi ve saati: ${new Date().toLocaleString("tr-TR")}\n`;
+
+    const systemPrompt = `Sen bir eğitim portalındaki yapay zeka asistanısın. Adın "Portal Asistanı". ` +
+      `Kullanıcıya (Öğrenci veya Öğretmen) sınıf bilgileri, ödevler, notlar ve teslimler hakkında yardımcı oluyorsun. ` +
+      `Bu bilgileri kullanarak kısa, öz, motive edici ve Türkçe cevap ver. Emoji kullanabilirsin.\n\n` +
+      `ÖZEL DAVRANIŞ VE ANALİZ TALİMATLARI (YALNIZCA GEREKTİĞİNDE KULLAN):\n` +
+      `1. ÖĞRENCİ GÜNLÜK RAPOR İSTERSE: Öğrencinin teslim tarihlerine (submittedAt) ve yaklaşan ödevlere (due date) bak. Başarılarını öv, eksiklerini kibarca hatırlat ve yarınki önceliklerini listele.\n` +
+      `2. AKILLI HATA TESPİTİ (ÖĞRENCİ İÇİN): Teslim (submittedAt) ve son gün (due date) arasındaki farka dikkat et. Eğer hep son dakikaya bırakıyorsa zaman yönetimi tavsiyesi ver.\n` +
+      `3. TÜKENMİŞLİK (BURNOUT) KONTROLÜ (ÖĞRENCİ İÇİN): Çok fazla bekleyen (pending) ve teslim tarihi yakın ödevi varsa, moral vererek küçük adımlara bölmesini sağla.\n` +
+      `4. ÖNCELİK SIRALAMASI: 'Hangi ödevden başlamalıyım?' diye sorarsa, teslim tarihi en yakın olan ve zorlandığı derse öncelik vererek yol haritası çiz.\n` +
+      `5. ROZET VE ÖVGÜ: Öğrenci zamanında iş bitiriyorsa sanal başarı rozetleri (Örn: 'Planlama Ustası') hediye et.\n` + 
+      `6. ÖĞRETMEN SINIF ANALİZİ İSTERSE: Sınıfın genel durumunu değerlendir. Hangi derslerde teslim oranının düşük veya notların kötü olduğuna bakarak öğretmene tavsiye ver (Örn: 'Matematik ödevinde sınıfın %70'i zorlanmış, konuyu tekrar etmeyi düşünebilirsiniz').\n\n`;
+
+    const chatCompletion = await groq.chat.completions.create({
+      messages: [
+        { role: "system", content: systemPrompt + contextText },
+        { role: "user", content: prompt }
+      ],
+      model: "llama-3.3-70b-versatile",
+      temperature: 0.7,
+      max_tokens: 1024,
+    });
+    
+    res.json({ ok: true, reply: chatCompletion.choices[0]?.message?.content || "Cevap üretilemedi." });
 
   } catch(e) {
-    console.error("AI Hatası:", e);
-    res.json({ ok: true, reply: "Şu an yoğunluktan dolayı bağlanamıyorum, lütfen biraz sonra tekrar dene." });
+    console.error("AI Hatası:", e.message || e);
+    let errorMsg = "Şu an bağlantı kuramıyorum, lütfen biraz sonra tekrar dene.";
+    if (e.message && e.message.includes("429")) {
+      errorMsg = "Çok fazla istek gönderildi, lütfen birkaç saniye bekleyip tekrar dene. ⏳";
+    }
+    res.json({ ok: true, reply: errorMsg });
   }
 });
 
@@ -718,7 +921,11 @@ app.get("/api/classes/members", authRequired, (req, res) => {
         status = user.status === "idle" ? "idle" : "active";
       }
     }
-    return { ...m, status };
+    
+    // YENİ: Performans ve Rozet Analizi
+    const performance = calcStudentPerformance(classId, m.studentId);
+
+    return { ...m, status, performance };
   });
   res.json({ ok: true, members });
 });
@@ -944,6 +1151,36 @@ app.post("/api/teacher/submissions/review", authRequired, (req, res) => {
     text: `${sub.course} ödevin notlandırıldı. Notun: ${sub.grade}`, 
     createdAt: new Date().toISOString() 
   });
+
+  res.json({ ok: true });
+});
+
+// YENİ: Öğrenci Kendi Performansını Çekebilsin
+app.get("/api/student/performance", authRequired, (req, res) => {
+  if (req.auth.role !== "student") return res.status(403).json({ ok: false });
+  const classId = String(req.query.classId || "").trim();
+  if (!classId) return res.status(400).json({ ok: false });
+  const performance = calcStudentPerformance(classId, req.auth.userId);
+  res.json({ ok: true, performance });
+});
+
+// YENİ: Öğretmen Öğrencinin Performans Notunu Elle Düzenler (Override)
+app.put("/api/teacher/performance-override", authRequired, express.json(), (req, res) => {
+  if (req.auth.role !== "teacher") return res.status(403).json({ ok: false });
+  const { classId, studentId, score } = req.body;
+  if (!classId || !studentId || score === undefined) return res.status(400).json({ ok: false });
+  
+  // Sınıfın öğretmeni mi?
+  const cls = db.classes.find(c => c.id === classId);
+  if (!cls || cls.teacherId !== req.auth.userId) return res.status(403).json({ ok: false, msg: "Yetkisiz." });
+
+  let override = db.performanceOverrides.find(o => o.classId === classId && o.studentId === studentId);
+  if (!override) {
+    override = { classId, studentId, score: Number(score) };
+    db.performanceOverrides.push(override);
+  } else {
+    override.score = Number(score);
+  }
 
   res.json({ ok: true });
 });
