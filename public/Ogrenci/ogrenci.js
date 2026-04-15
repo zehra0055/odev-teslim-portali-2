@@ -109,6 +109,7 @@ const views = {
   dashboard: document.getElementById("view-dashboard"),
   assignments: document.getElementById("view-assignments"),
   submit: document.getElementById("view-submit"),
+  "homework-editor": document.getElementById("view-homework-editor"),
   history: document.getElementById("view-history"),
   groups: document.getElementById("view-groups"), // YENİ: Gruplar
   live: document.getElementById("view-live")
@@ -119,6 +120,7 @@ const activeClassChip = document.getElementById("activeClassChip");
 const assClassChip = document.getElementById("assClassChip");
 const subClassChip = document.getElementById("subClassChip");
 const histClassChip = document.getElementById("histClassChip");
+const editorClassChip = document.getElementById("editorClassChip");
 
 // KPIs
 const kpiMyClasses = document.getElementById("kpiMyClasses");
@@ -598,6 +600,10 @@ function setView(name){
     if(el) el.classList.toggle("active", k === name);
   });
   if(name === 'groups') loadGroups();
+  if(name === 'homework-editor') {
+    initQuill();
+    fillEditorAssignmentSelect();
+  }
 }
 
 function setActiveClassChip(){
@@ -1067,8 +1073,173 @@ async function refreshAll(){
   fillSubmitPanel();
   renderHistory();
   loadPrivateChat();
-  loadGroups(); 
 }
+
+// ========= YENİ: ÖDEV EDİTÖRÜ (WORD-LIKE) VE AI REHBERLİK =========
+let homeworkQuill = null;
+const editorAssignmentSelect = document.getElementById("editorAssignmentSelect");
+const editorClearBtn = document.getElementById("editorClearBtn");
+const editorSubmitBtn = document.getElementById("editorSubmitBtn");
+const editorAlert = document.getElementById("editorAlert");
+const aiHelpIdea = document.getElementById("aiHelpIdea");
+const aiHelpReview = document.getElementById("aiHelpReview");
+const aiHelpResultBox = document.getElementById("aiHelpResultBox");
+const aiHelpResultText = document.getElementById("aiHelpResultText");
+
+function initQuill() {
+  if(!document.getElementById("hw-editor-container")) return;
+  if(homeworkQuill) return; // already init
+
+  homeworkQuill = new Quill('#hw-editor-container', {
+    theme: 'snow',
+    placeholder: 'Ödevini buraya yazmaya başla...',
+    modules: {
+      toolbar: [
+        [{ 'header': [1, 2, 3, false] }],
+        ['bold', 'italic', 'underline', 'strike'],
+        [{ 'color': [] }, { 'background': [] }],
+        [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+        ['blockquote', 'code-block', 'image'],
+        ['clean']
+      ]
+    }
+  });
+
+  // Quill events -> Activity Track
+  homeworkQuill.on('text-change', resetActivityTimer);
+}
+
+function fillEditorAssignmentSelect() {
+  if (!editorAssignmentSelect) return;
+  editorAssignmentSelect.innerHTML = "";
+  if (!activeClassId) {
+    editorAssignmentSelect.disabled = true;
+    return;
+  }
+  const as = [...assignmentsCache].sort((a,b)=> (a.due||"").localeCompare(b.due||""));
+  if (!as.length) {
+    editorAssignmentSelect.disabled = true;
+    const opt = document.createElement("option");
+    opt.textContent = "Bu sınıfta ödev yok.";
+    editorAssignmentSelect.appendChild(opt);
+    return;
+  }
+  
+  editorAssignmentSelect.disabled = false;
+  as.forEach(a => {
+    const opt = document.createElement("option");
+    opt.value = a.id;
+    opt.textContent = `${a.course} — ${a.title}`;
+    editorAssignmentSelect.appendChild(opt);
+  });
+}
+
+async function askEditorAI(promptType) {
+  if(!homeworkQuill) return;
+  const currentText = homeworkQuill.getText().trim();
+  
+  if(!currentText || currentText.length < 10) {
+    aiHelpResultBox.hidden = false;
+    aiHelpResultText.innerHTML = "<span style='color:#ef4444;'>Lütfen önce editöre ödevinle ilgili biraz bir şeyler yaz ki yardımcı olabileyim!</span>";
+    return;
+  }
+
+  aiHelpResultBox.hidden = false;
+  aiHelpResultText.innerHTML = "<span class='ai-typing-dots'>Okuyorum ve inceliyorum<span>.</span><span>.</span><span>.</span></span>";
+  
+  let aiPrompt = "";
+  if(promptType === "idea") {
+    aiPrompt = `Öğrenci şu an portal editöründe şu metni hazırlıyor:\n\n"${currentText}"\n\nLütfen bir akademik asistan gibi davranarak ona bu ödevi daha iyi yapabilmesi için yönlendirici sorular sor, ilham ver, ve bir sonraki cümleyi / paragrafı nasıl bağlayabileceğini öner. Doğrudan onun yerine ödevi yapma, sadece ufkunu aç. ASLA ÇİNCE (方面 vb.) VEYA FARKLI BİR ALFABE KULLANMA, KESİNLİKLE SADECE TÜRKÇE YAZ!`;
+  } else {
+    aiPrompt = `Öğrenci şu an portal editöründe şu metni hazırlıyor:\n\n"${currentText}"\n\nLütfen bir akademik asistan gibi davran. Yazdıklarını incele, imla, mantık veya içerik hataları varsa düzeltmesini öner ve genel bir eleştiri/değerlendirme yap. ASLA ÇİNCE VEYA FARKLI BİR ALFABE KULLANMA, KESİNLİKLE SADECE TÜRKÇE YAZ!`;
+  }
+
+  try {
+    const data = await apiFetch("/api/ai/ask", { 
+      method: "POST", 
+      body: JSON.stringify({ prompt: aiPrompt, classId: activeClassId || "" }) 
+    });
+    let formattedReply = (data.reply || "").replace(/\*\*(.*?)\*\*/g, '<b>$1</b>').replace(/\*(.*?)\*/g, '<i>$1</i>').replace(/\n/g, '<br>');
+    aiHelpResultText.innerHTML = formattedReply;
+  } catch(e) {
+    aiHelpResultText.innerHTML = "<span style='color:#ef4444;'>Asistana bağlanırken hata oluştu.</span>";
+  }
+}
+
+async function submitEditorPDF() {
+  if(!requireActiveClass()) return;
+  if(!homeworkQuill) return;
+  const aId = editorAssignmentSelect?.value;
+  if(!aId) return setAlert(editorAlert, "err", "Lütfen yukarıdan bir ödev seçin.");
+  const a = assignmentsCache.find(x => x.id === aId);
+  if(!a) return;
+
+  const contentHTML = homeworkQuill.root.innerHTML;
+  if(homeworkQuill.getText().trim().length < 10) return setAlert(editorAlert, "err", "Ödev çok kısa, biraz daha detaylandırın.");
+
+  setAlert(editorAlert, "warn", "PDF hazırlanıyor ve sunucuya yükleniyor...");
+  editorSubmitBtn.disabled = true;
+
+  try {
+    // 1. Convert Editor HTML to PDF Blob
+    const wrapper = document.createElement("div");
+    wrapper.innerHTML = `
+      <div style="font-family: Arial, sans-serif; padding: 30px; font-size:14px; line-height:1.6;">
+        <h2 style="color:#1e3a5f; margin-bottom: 5px;">${a.course} - ${a.title}</h2>
+        <div style="color:#64748b; font-size:12px; margin-bottom: 30px;">
+          <u>Öğrenci:</u> ${me.name || "Öğrenci"}<br>
+          <u>Tarih:</u> ${new Date().toLocaleDateString("tr-TR")}<br>
+        </div>
+        <div style="color:#333;">
+          ${contentHTML}
+        </div>
+      </div>
+    `;
+
+    const opt = {
+      margin:       10,
+      filename:     'Odev_Teslim_' + String(Date.now()).slice(-5) + '.pdf',
+      image:        { type: 'jpeg', quality: 0.98 },
+      html2canvas:  { scale: 2 },
+      jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+    };
+
+    const pdfBlob = await html2pdf().set(opt).from(wrapper).output('blob');
+    const pdfFile = new File([pdfBlob], opt.filename, { type: "application/pdf" });
+
+    // 2. Upload using existing logic
+    const fd = new FormData();
+    fd.append("file", pdfFile);
+    fd.append("classId", activeClassId);
+    fd.append("assignmentId", a.id);
+    fd.append("teacherId", a.teacherId);
+    fd.append("studentName", me.name || "Öğrenci");
+    fd.append("course", a.course || "");
+    fd.append("title", a.title || "");
+    fd.append("studentNote", "Editör üzerinden hazırlanan otomatik PDF çıktısı.");
+
+    await apiFetch(`/api/submissions/upload`, {
+      method: "POST",
+      body: fd
+    });
+
+    setAlert(editorAlert, "ok", "Harika! Ödevin başarıyla PDF'e dönüştürülüp teslim edildi!");
+    homeworkQuill.setText('');
+    aiHelpResultBox.hidden = true;
+    
+    // Geçmiş sekmesine yönlendir
+    setTimeout(() => {
+      setView("history");
+      refreshAll();
+    }, 2000);
+
+  } catch(e) {
+    setAlert(editorAlert, "err", e.message || "PDF yüklenirken bir hata oluştu.");
+  } finally {
+    editorSubmitBtn.disabled = false;
+  }
+}
+
 
 // ========= EVENTLER =========
 document.addEventListener("DOMContentLoaded", () => {
@@ -1214,6 +1385,15 @@ document.addEventListener("DOMContentLoaded", () => {
       if(filePreview) filePreview.hidden = true;
     });
   }
+
+  // YENİ EKLENEN: Ödev Editoru ve AI Butonları
+  if(editorClearBtn) editorClearBtn.addEventListener("click", () => {
+    if(homeworkQuill && confirm("Tüm yazdıkların silinecek, emin misin?")) homeworkQuill.setText("");
+  });
+  if(editorSubmitBtn) editorSubmitBtn.addEventListener("click", submitEditorPDF);
+  if(aiHelpIdea) aiHelpIdea.addEventListener("click", () => askEditorAI("idea"));
+  if(aiHelpReview) aiHelpReview.addEventListener("click", () => askEditorAI("review"));
+
 });
 
 // ==========================================

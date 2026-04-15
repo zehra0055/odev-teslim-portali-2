@@ -764,3 +764,15 @@ input:focus, textarea:focus, select:focus{
   display: none !important;
 }
 
+/* YENI EKLENEN: ODEV EDITORU VE AI */
+.grid-2-ai-editor {
+  display: grid;
+  grid-template-columns: 1fr 340px;
+  gap: 16px;
+  align-items: start;
+}
+@media (max-width: 900px) {
+  .grid-2-ai-editor { grid-template-columns: 1fr; }
+}
+.ql-toolbar { border-radius: 8px 8px 0 0; background: #f8fafc; }
+.ql-container { font-size: 15px; font-family: inherit; }

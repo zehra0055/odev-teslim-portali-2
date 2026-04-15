@@ -1824,4 +1824,15 @@ async function aiAsk(promptText) {
     }
   }, 5000);
 
+  // YENİ EKLENEN: Not girildiğinde durumu otomatik Notlandırıldı yap
+  if (gradeInput && statusInput) {
+    gradeInput.addEventListener("input", () => {
+      if (gradeInput.value.trim() !== "") {
+        statusInput.value = "graded";
+      } else {
+        statusInput.value = "pending";
+      }
+    });
+  }
+
 })();
