@@ -639,5 +639,51 @@
     </div>
   </div>
 
+  <!-- YENİ: Öğrenci Profil Görüntüleme Modalı -->
+  <div class="modal" id="studentProfileModal" aria-hidden="true">
+    <div class="modal-card" role="dialog" aria-modal="true" style="max-width: 400px; text-align: center;">
+      <div class="modal-top" style="border-bottom: none; padding-bottom: 0;">
+        <div class="modal-title"></div>
+        <button class="icon-btn" data-close="studentProfileModal" aria-label="Kapat" type="button">✕</button>
+      </div>
+      <div style="padding: 10px 20px 20px;">
+        <img id="spAvatar" src="" alt="Avatar" style="width:100px; height:100px; border-radius:50%; object-fit:cover; border:3px solid var(--primary); display:none; margin:0 auto 15px;" />
+        <h2 id="spName" style="margin:0 0 5px; color:#1e3a5f;">—</h2>
+        <div id="spRole" style="font-size:12px; color:var(--primary); font-weight:bold; margin-bottom:15px; text-transform:uppercase;">Öğrenci</div>
+        
+        <div style="background:#f8fafc; border-radius:12px; padding:15px; text-align:left; border:1px solid #e2e8f0;">
+          <div style="margin-bottom:8px; font-size:13px;"><b style="color:#64748b; display:inline-block; width:90px;">Okul No:</b> <span id="spSchoolNumber" style="font-weight:600;">—</span></div>
+          <div style="margin-bottom:8px; font-size:13px;"><b style="color:#64748b; display:inline-block; width:90px;">E-Posta:</b> <span id="spEmail" style="font-weight:600;">—</span></div>
+          <div style="margin-bottom:8px; font-size:13px;"><b style="color:#64748b; display:inline-block; width:90px;">Telefon:</b> <span id="spPhone" style="font-weight:600;">—</span></div>
+          <div style="margin-bottom:8px; font-size:13px;"><b style="color:#64748b; display:inline-block; width:90px;">Adres:</b> <span id="spAddress" style="font-weight:600;">—</span></div>
+          <div style="margin-top:12px; font-size:13px; border-top:1px dashed #cbd5e1; padding-top:12px;">
+            <b style="color:#64748b; display:block; margin-bottom:4px;">Hakkında:</b>
+            <div id="spBio" style="font-style:italic; color:#475569;">—</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- YENİ: TAM EKRAN SUNUM OYNATICI (PLAYER) -->
+  <div class="pres-player-overlay" id="presPlayerOverlay" hidden>
+    <div class="pres-player-toolbar">
+      <div id="presPlayerTitle" style="color:white; font-weight:bold;">Sunum Oynatıcı</div>
+      <button class="btn ghost btn-sm" id="closePresPlayerBtn" style="color:#ef4444; font-weight:900;">✖ Çıkış Yap (ESC)</button>
+    </div>
+    
+    <div class="pres-player-main">
+      <button class="pres-nav-btn" id="presPrevBtn">◄</button>
+      <div class="pres-player-canvas" id="presPlayerCanvas">
+        <!-- Sunum buraya çizilecek -->
+      </div>
+      <button class="pres-nav-btn" id="presNextBtn">►</button>
+    </div>
+    
+    <div class="pres-player-footer">
+      <div class="pres-dots" id="presPlayerDots"></div>
+    </div>
+  </div>
+
 </body>
 </html>

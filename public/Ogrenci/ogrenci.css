@@ -776,3 +776,178 @@ input:focus, textarea:focus, select:focus{
 }
 .ql-toolbar { border-radius: 8px 8px 0 0; background: #f8fafc; }
 .ql-container { font-size: 15px; font-family: inherit; }
+
+/* =========================================
+   İNTERAKTİF SUNUM EDİTÖRÜ CSS
+========================================= */
+.presentation-builder {
+  display: flex;
+  gap: 16px;
+  height: calc(100vh - 200px);
+  min-height: 550px;
+}
+.pres-sidebar {
+  width: 220px;
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+.pres-thumbnails {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 5px;
+}
+.pres-thumb {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  background: #f1f5f9;
+  border: 2px solid var(--line);
+  border-radius: 8px;
+  cursor: pointer;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: bold;
+  color: var(--muted);
+  overflow: hidden;
+  transition: 0.2s;
+}
+.pres-thumb:hover { border-color: #cbd5e1; }
+.pres-thumb.active { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(47,111,182,.2); }
+.pres-thumb-num {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  background: rgba(0,0,0,0.5);
+  color: white;
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.pres-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.pres-toolbar, .pres-slide-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.pres-slide-toolbar {
+  background: #f8fafc;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  margin-bottom: 12px;
+}
+.layout-btn.active {
+  background: var(--primary);
+  color: white;
+  border-color: var(--primary);
+}
+
+.pres-canvas-wrapper {
+  flex: 1;
+  background: #e2e8f0;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  overflow: hidden;
+  border: 1px solid #cbd5e1;
+}
+
+/* --- CANLI SLAYT (CANVAS) --- */
+.pres-slide {
+  width: 100%;
+  max-width: 800px;
+  aspect-ratio: 16 / 9;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  padding: 40px;
+  transition: all 0.5s ease;
+}
+
+/* --- TEMALAR --- */
+.theme-academic { background: #ffffff; color: #1e293b; border: 10px solid #f8fafc; }
+.theme-academic .p-title { color: #0f172a; border-bottom: 2px solid #cbd5e1; padding-bottom: 10px; }
+
+.theme-modern { background: linear-gradient(135deg, #f0f9ff, #e0f2fe); color: #0f172a; }
+.theme-modern .p-title { color: #0284c7; }
+
+.theme-cyberpunk { background: #0f172a; color: #f8fafc; border: 2px solid #a855f7; box-shadow: inset 0 0 20px rgba(168, 85, 247, 0.2); }
+.theme-cyberpunk .p-title { color: #22d3ee; text-shadow: 0 0 8px rgba(34, 211, 238, 0.5); }
+.theme-cyberpunk .p-body { color: #e2e8f0; }
+
+.theme-space { background: radial-gradient(circle at center, #1e1b4b, #000000); color: #e0e7ff; }
+.theme-space .p-title { color: #a5b4fc; }
+
+.theme-minimalist { background: #fafafa; color: #111827; }
+.theme-minimalist .p-title { font-weight: 300; letter-spacing: 2px; }
+
+.theme-playful { background: #fef08a; color: #7c2d12; border: 15px solid #fde047; border-radius: 24px; }
+.theme-playful .p-title { color: #ea580c; font-weight: 900; }
+
+/* --- ŞABLONLAR (LAYOUTS) --- */
+.p-title, .p-body {
+  outline: none;
+  border: 1px dashed transparent;
+  transition: 0.2s;
+  padding: 10px;
+  border-radius: 8px;
+}
+.p-title:focus, .p-body:focus {
+  border-color: rgba(99,102,241,0.5);
+  background: rgba(255,255,255,0.05);
+}
+
+.layout-title { justify-content: center; align-items: center; text-align: center; }
+.layout-title .p-title { font-size: 42px; font-weight: 900; width: 100%; margin-bottom: 20px; }
+.layout-title .p-body { font-size: 20px; width: 80%; opacity: 0.8; }
+
+.layout-content { justify-content: flex-start; }
+.layout-content .p-title { font-size: 32px; font-weight: 800; width: 100%; margin-bottom: 20px; }
+.layout-content .p-body { font-size: 22px; flex: 1; width: 100%; }
+.layout-content .p-body ul { padding-left: 30px; }
+.layout-content .p-body li { margin-bottom: 10px; }
+
+.layout-image { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; align-items: center; }
+.layout-image .p-image-placeholder { background: rgba(0,0,0,0.1); border-radius: 12px; height: 100%; display: flex; align-items: center; justify-content: center; font-size: 40px; color: rgba(0,0,0,0.3); border: 2px dashed rgba(0,0,0,0.2); }
+.layout-image .p-text-col { display: flex; flex-direction: column; gap: 20px; }
+.layout-image .p-title { font-size: 28px; font-weight: 800; padding: 0; }
+.layout-image .p-body { font-size: 18px; padding: 0; }
+
+.layout-quote { justify-content: center; align-items: center; text-align: center; }
+.layout-quote .p-body { font-size: 36px; font-weight: bold; font-style: italic; width: 80%; position: relative; }
+.layout-quote .p-body::before { content: '"'; font-size: 80px; position: absolute; left: -40px; top: -20px; opacity: 0.2; }
+.layout-quote .p-title { font-size: 18px; opacity: 0.7; margin-top: 20px; }
+
+/* --- GEÇİŞ ANİMASYONLARI (Editörde sadece temel çalışır, asıl oynatıcıda görünür) --- */
+.transition-fade { animation: fadeIn 0.5s ease; }
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+.transition-slide { animation: slideIn 0.5s ease; }
+@keyframes slideIn { from { transform: translateX(50px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+
+.transition-zoom { animation: zoomIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+@keyframes zoomIn { from { transform: scale(0.8); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+
+.transition-flip { animation: flipIn 0.6s ease; }
+@keyframes flipIn { from { transform: rotateY(-90deg); opacity: 0; } to { transform: rotateY(0); opacity: 1; } }
+

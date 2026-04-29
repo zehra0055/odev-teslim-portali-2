@@ -848,11 +848,18 @@ function renderStudentList() {
           ${badgesHtml}
         </div>
       </div>
-      <div style="display:flex; flex-direction:column; align-items:flex-end; gap:6px;">
+      <div style="display:flex; flex-direction:column; align-items:flex-end; gap:8px;">
         ${statusPill}
+        <button class="btn view-profile-btn" style="background:var(--primary); color:white; font-size:12px; font-weight:bold; padding:6px 12px; border-radius:8px; border:none; box-shadow:0 2px 4px rgba(0,0,0,0.1); cursor:pointer;">👤 Profili Gör</button>
         <span style="font-size:10px; color:var(--muted); font-weight:bold;">${fmtDate(m.joinedAt)}</span>
       </div>
     `;
+
+    // Profil Görüntüleme
+    const vProfBtn = el.querySelector(".view-profile-btn");
+    if (vProfBtn) {
+      vProfBtn.addEventListener("click", () => openStudentProfile(m.studentId, m.studentName));
+    }
 
     // Performans Notunu Düzenleme
     const ptBadge = el.querySelector(".pt-editable");
@@ -904,7 +911,12 @@ function selectSubmission(id) {
   
   if (dFile) {
     if (s.fileUrl) {
-      dFile.innerHTML = `<a href="${API_BASE}${s.fileUrl}" target="_blank" rel="noopener">Dosyayı Görüntüle / İndir</a>`;
+      const isJsonFile = fileName.toLowerCase().endsWith('.json');
+      if (s.isPresentation || isJsonFile) {
+        dFile.innerHTML = `<button class="btn primary" onclick="openPresentationPlayer('${s.fileUrl}')" style="background:linear-gradient(135deg, #10b981, #059669); border:none;">▶️ Sunumu Tam Ekran Oynat</button>`;
+      } else {
+        dFile.innerHTML = `<a href="${API_BASE}${s.fileUrl}" target="_blank" rel="noopener">Dosyayı Görüntüle / İndir</a>`;
+      }
     } else {
       dFile.textContent = "Dosya bulunamadı";
     }
@@ -1158,6 +1170,140 @@ classSelect?.addEventListener("change", async () => {
   await refreshAll(true);
 });
 
+function filterList() {
+  renderSubmissionList();
+}
+
+filterCourse?.addEventListener("input", filterList);
+filterStatus?.addEventListener("change", filterList);
+
+// =========================================
+// YENİ: İNTERAKTİF SUNUM OYNATICI MANTIĞI
+// =========================================
+let playerSlides = [];
+let playerActiveIndex = 0;
+let playerTheme = "theme-academic";
+let playerTransition = "transition-slide";
+
+async function openPresentationPlayer(fileUrl) {
+  try {
+    const res = await fetch(`${API_BASE}${fileUrl}`);
+    const data = await res.json();
+    
+    playerSlides = data.slides || [];
+    playerTheme = data.theme || "theme-academic";
+    playerTransition = `transition-${data.transition || "slide"}`;
+    playerActiveIndex = 0;
+
+    if (playerSlides.length === 0) return alert("Bu sunumda slayt yok!");
+
+    document.getElementById("presPlayerOverlay").hidden = false;
+    renderPlayerSlide();
+  } catch (err) {
+    console.error("Sunum yüklenemedi:", err);
+    alert("Sunum yüklenirken bir hata oluştu. Lütfen dosya formatını kontrol edin.");
+  }
+}
+
+function renderPlayerSlide() {
+  const canvas = document.getElementById("presPlayerCanvas");
+  const dotsContainer = document.getElementById("presPlayerDots");
+  
+  if (!canvas || playerSlides.length === 0) return;
+
+  const slide = playerSlides[playerActiveIndex];
+  
+  // Apply theme and transition classes to canvas
+  canvas.className = `pres-player-canvas ${playerTheme} layout-${slide.layout} ${playerTransition}`;
+  
+  // Trigger animation reflow
+  canvas.style.animation = 'none';
+  canvas.offsetHeight; 
+  canvas.style.animation = null;
+
+  // Render HTML based on layout
+  let innerHtml = "";
+  if (slide.layout === "title" || slide.layout === "content") {
+    innerHtml = `
+      <div class="pres-slide" style="position:relative;">
+        <div class="p-title">${slide.title}</div>
+        <div class="p-body">${slide.body}</div>
+      </div>
+    `;
+  } else if (slide.layout === "image") {
+    innerHtml = `
+      <div class="pres-slide" style="position:relative;">
+        <div class="p-image-placeholder">🖼️ Görsel</div>
+        <div class="p-text-col">
+          <div class="p-title">${slide.title}</div>
+          <div class="p-body">${slide.body}</div>
+        </div>
+      </div>
+    `;
+  } else if (slide.layout === "quote") {
+    innerHtml = `
+      <div class="pres-slide" style="position:relative;">
+        <div class="p-body">${slide.body}</div>
+        <div class="p-title">${slide.title}</div>
+      </div>
+    `;
+  }
+  
+  canvas.innerHTML = innerHtml;
+
+  // Render Dots
+  if (dotsContainer) {
+    dotsContainer.innerHTML = "";
+    playerSlides.forEach((_, i) => {
+      const dot = document.createElement("div");
+      dot.className = `pres-dot ${i === playerActiveIndex ? 'active' : ''}`;
+      dot.onclick = () => {
+        playerActiveIndex = i;
+        renderPlayerSlide();
+      };
+      dotsContainer.appendChild(dot);
+    });
+  }
+}
+
+document.getElementById("closePresPlayerBtn")?.addEventListener("click", () => {
+  document.getElementById("presPlayerOverlay").hidden = true;
+});
+
+document.getElementById("presPrevBtn")?.addEventListener("click", () => {
+  if (playerActiveIndex > 0) {
+    playerActiveIndex--;
+    renderPlayerSlide();
+  }
+});
+
+document.getElementById("presNextBtn")?.addEventListener("click", () => {
+  if (playerActiveIndex < playerSlides.length - 1) {
+    playerActiveIndex++;
+    renderPlayerSlide();
+  }
+});
+
+// Keyboard Navigation for Presentation Player
+window.addEventListener("keydown", (e) => {
+  const overlay = document.getElementById("presPlayerOverlay");
+  if (!overlay || overlay.hidden) return;
+  
+  if (e.key === "ArrowRight" || e.key === "Space") {
+    if (playerActiveIndex < playerSlides.length - 1) {
+      playerActiveIndex++;
+      renderPlayerSlide();
+    }
+  } else if (e.key === "ArrowLeft") {
+    if (playerActiveIndex > 0) {
+      playerActiveIndex--;
+      renderPlayerSlide();
+    }
+  } else if (e.key === "Escape") {
+    overlay.hidden = true;
+  }
+});
+
 goSubmissions?.addEventListener("click", () => setView("submissions"));
 
 filterCourse?.addEventListener("input", () => renderSubmissionList());
@@ -1205,7 +1351,6 @@ if(perfForm) {
 }
 
 // Chat & Bildirim & Gruplar UI Eventleri
-document.addEventListener("DOMContentLoaded", () => {
   const notifBtn = document.getElementById('notifBtn');
   const notifDropdown = document.getElementById('notifDropdown');
   if(notifBtn && notifDropdown) {
@@ -1314,7 +1459,6 @@ document.addEventListener("DOMContentLoaded", () => {
       if(filePreview) filePreview.hidden = true;
     });
   }
-});
 
 // ========= DERS (COURSE) YÖNETİMİ =========
 function populateCourseSelects() {
@@ -1834,5 +1978,61 @@ async function aiAsk(promptText) {
       }
     });
   }
+
+  // YENİ: Öğrenci Profili Açma Mantığı
+  async function openStudentProfile(studentId, studentName) {
+    const modal = document.getElementById("studentProfileModal");
+    const titleEl = modal.querySelector(".modal-title");
+    const nameEl = document.getElementById("spName");
+    const avatarEl = document.getElementById("spAvatar");
+    const schoolNoEl = document.getElementById("spSchoolNumber");
+    const emailEl = document.getElementById("spEmail");
+    const phoneEl = document.getElementById("spPhone");
+    const addressEl = document.getElementById("spAddress");
+    const bioEl = document.getElementById("spBio");
+
+    titleEl.textContent = "👤 Profil İncelemesi";
+    nameEl.textContent = studentName || "Yükleniyor...";
+    
+    // Varsayılanları ayarla
+    avatarEl.style.display = "none";
+    schoolNoEl.textContent = "Yükleniyor...";
+    emailEl.textContent = "Yükleniyor...";
+    phoneEl.textContent = "Yükleniyor...";
+    addressEl.textContent = "Yükleniyor...";
+    bioEl.innerHTML = "Yükleniyor...";
+
+    openModal(modal);
+
+    try {
+      const data = await apiFetch(`/api/users/profile/${studentId}`);
+      if (data && data.profile) {
+        const p = data.profile;
+        nameEl.textContent = p.name || studentName;
+        schoolNoEl.textContent = p.schoolNumber || "Belirtilmemiş";
+        emailEl.textContent = p.email || "Belirtilmemiş";
+        phoneEl.textContent = p.phone || "Belirtilmemiş";
+        addressEl.textContent = p.address || "Belirtilmemiş";
+        bioEl.innerHTML = p.bio ? p.bio.replace(/\n/g, "<br>") : "<i>Belirtilmemiş</i>";
+
+        if (p.avatarUrl) {
+          avatarEl.src = API_BASE + p.avatarUrl;
+          avatarEl.style.display = "block";
+        } else {
+          avatarEl.style.display = "none";
+        }
+      }
+    } catch (e) {
+      console.error(e);
+      schoolNoEl.textContent = "Hata oluştu";
+      emailEl.textContent = "Hata oluştu";
+      phoneEl.textContent = "Hata oluştu";
+      addressEl.textContent = "Hata oluştu";
+      bioEl.innerHTML = "Hata oluştu";
+    }
+  }
+  
+  // Make global so it can be called from inline or within the IIFE
+  window.openStudentProfile = openStudentProfile;
 
 })();

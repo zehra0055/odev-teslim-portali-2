@@ -110,6 +110,7 @@ const views = {
   assignments: document.getElementById("view-assignments"),
   submit: document.getElementById("view-submit"),
   "homework-editor": document.getElementById("view-homework-editor"),
+  "presentation-editor": document.getElementById("view-presentation-editor"),
   history: document.getElementById("view-history"),
   groups: document.getElementById("view-groups"), // YENİ: Gruplar
   live: document.getElementById("view-live")
@@ -121,6 +122,7 @@ const assClassChip = document.getElementById("assClassChip");
 const subClassChip = document.getElementById("subClassChip");
 const histClassChip = document.getElementById("histClassChip");
 const editorClassChip = document.getElementById("editorClassChip");
+const presClassChip = document.getElementById("presClassChip");
 
 // KPIs
 const kpiMyClasses = document.getElementById("kpiMyClasses");
@@ -604,6 +606,9 @@ function setView(name){
     initQuill();
     fillEditorAssignmentSelect();
   }
+  if(name === 'presentation-editor') {
+    initPresentationEditor();
+  }
 }
 
 function setActiveClassChip(){
@@ -613,6 +618,8 @@ function setActiveClassChip(){
   if (assClassChip) assClassChip.textContent = label;
   if (subClassChip) subClassChip.textContent = label;
   if (histClassChip) histClassChip.textContent = label;
+  if (editorClassChip) editorClassChip.textContent = label;
+  if (presClassChip) presClassChip.textContent = label;
 }
 
 async function fillClassSelect(){
@@ -1242,7 +1249,6 @@ async function submitEditorPDF() {
 
 
 // ========= EVENTLER =========
-document.addEventListener("DOMContentLoaded", () => {
   const notifBtn = document.getElementById('notifBtn');
   const notifDropdown = document.getElementById('notifDropdown');
   if(notifBtn && notifDropdown) {
@@ -1362,27 +1368,27 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("groupChatInput")?.addEventListener("keypress", (e) => { if(e.key === 'Enter') sendGroupMessage(); });
   document.getElementById("sendGroupMsgBtn")?.addEventListener("click", sendGroupMessage);
 
-  const fileInput = document.getElementById("groupChatFileInput");
-  const attachBtn = document.getElementById("groupChatAttachBtn");
-  const filePreview = document.getElementById("groupChatFilePreview");
-  const fileName = document.getElementById("groupChatFileName");
-  const fileClear = document.getElementById("groupChatFileClear");
+  const groupFileInput = document.getElementById("groupChatFileInput");
+  const groupAttachBtn = document.getElementById("groupChatAttachBtn");
+  const groupFilePreview = document.getElementById("groupChatFilePreview");
+  const groupFileName = document.getElementById("groupChatFileName");
+  const groupFileClear = document.getElementById("groupChatFileClear");
 
-  if(attachBtn && fileInput) {
-    attachBtn.addEventListener("click", () => fileInput.click());
-    fileInput.addEventListener("change", () => {
-      if(fileInput.files.length > 0) {
-        if(fileName) fileName.textContent = "📎 " + fileInput.files[0].name;
-        if(filePreview) filePreview.hidden = false;
+  if(groupAttachBtn && groupFileInput) {
+    groupAttachBtn.addEventListener("click", () => groupFileInput.click());
+    groupFileInput.addEventListener("change", () => {
+      if(groupFileInput.files.length > 0) {
+        if(groupFileName) groupFileName.textContent = "📎 " + groupFileInput.files[0].name;
+        if(groupFilePreview) groupFilePreview.hidden = false;
       } else {
-        if(filePreview) filePreview.hidden = true;
+        if(groupFilePreview) groupFilePreview.hidden = true;
       }
     });
   }
-  if(fileClear) {
-    fileClear.addEventListener("click", () => {
-      if(fileInput) fileInput.value = "";
-      if(filePreview) filePreview.hidden = true;
+  if(groupFileClear) {
+    groupFileClear.addEventListener("click", () => {
+      if(groupFileInput) groupFileInput.value = "";
+      if(groupFilePreview) groupFilePreview.hidden = true;
     });
   }
 
@@ -1393,8 +1399,6 @@ document.addEventListener("DOMContentLoaded", () => {
   if(editorSubmitBtn) editorSubmitBtn.addEventListener("click", submitEditorPDF);
   if(aiHelpIdea) aiHelpIdea.addEventListener("click", () => askEditorAI("idea"));
   if(aiHelpReview) aiHelpReview.addEventListener("click", () => askEditorAI("review"));
-
-});
 
 // ==========================================
 // EKRAN VE ODAK TAKİP SİSTEMİ (SCREEN TRACKING)
@@ -1449,7 +1453,8 @@ setInterval(() => {
 
 // ========= init =========
 (async function boot(){
-  if (who) who.textContent = me?.name ? `👩‍🎓 ${me.name}` : "👩‍🎓 Öğrenci";
+  const whoText = document.getElementById("whoText");
+  if (whoText) whoText.textContent = me?.name ? `👩‍🎓 ${me.name}` : "👩‍🎓 Öğrenci";
 
   if (logoutBtn) {
     logoutBtn.addEventListener("click", () => {
@@ -1712,8 +1717,391 @@ setInterval(() => {
     };
   }
   
+  // ============================
+  // YENİ: PROFILE MODAL LOGIC
+  // ============================
+  const profileBtn = document.getElementById("profileBtn");
+  const profileModal = document.getElementById("profileModal");
+  const saveProfileBtn = document.getElementById("saveProfileBtn");
+  
+  const pAvatarPreview = document.getElementById("profileAvatarPreview");
+  const pAvatarInitials = document.getElementById("profileAvatarInitials");
+  const pAvatarName = document.getElementById("profileAvatarName");
+  const pAvatarInput = document.getElementById("profileAvatarInput");
+  const pEmail = document.getElementById("profileEmail");
+  const pSchoolNumber = document.getElementById("profileSchoolNumber");
+  const pPhone = document.getElementById("profilePhone");
+  const pAddress = document.getElementById("profileAddress");
+  const pBio = document.getElementById("profileBio");
+  const pAlert = document.getElementById("profileAlert");
+  const topAvatar = document.getElementById("topAvatar");
+
+  if (pAvatarInput) {
+    pAvatarInput.addEventListener("change", (e) => {
+      const file = e.target.files[0];
+      if (file) {
+        if (pAvatarName) {
+          pAvatarName.textContent = "Seçildi: " + file.name;
+          pAvatarName.hidden = false;
+        }
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+          if (pAvatarPreview) {
+            pAvatarPreview.src = ev.target.result;
+            pAvatarPreview.style.display = "block";
+          }
+          if (pAvatarInitials) pAvatarInitials.style.display = "none";
+        };
+        reader.readAsDataURL(file);
+      } else {
+        if (pAvatarName) pAvatarName.hidden = true;
+      }
+    });
+  }
+
+  async function loadProfile() {
+    try {
+      const data = await apiFetch("/api/users/profile");
+      if (data.profile) {
+        const p = data.profile;
+        pEmail.value = p.email || "";
+        pSchoolNumber.value = p.schoolNumber || "";
+        pPhone.value = p.phone || "";
+        pAddress.value = p.address || "";
+        pBio.value = p.bio || "";
+        
+        if (p.avatarUrl) {
+          pAvatarPreview.src = API_BASE + p.avatarUrl;
+          pAvatarPreview.style.display = "block";
+          if (pAvatarInitials) pAvatarInitials.style.display = "none";
+          if (topAvatar) {
+            topAvatar.src = API_BASE + p.avatarUrl;
+            topAvatar.style.display = "block";
+          }
+        } else {
+          pAvatarPreview.style.display = "none";
+          if (pAvatarInitials) pAvatarInitials.style.display = "flex";
+          if (topAvatar) topAvatar.style.display = "none";
+        }
+      }
+    } catch (e) {
+      console.error("Profile load error:", e);
+    }
+  }
+
+  if (profileBtn && profileModal) {
+    profileBtn.addEventListener("click", () => {
+      clearAlert(pAlert);
+      loadProfile();
+      openModal(profileModal);
+    });
+  }
+
+  if (saveProfileBtn) {
+    saveProfileBtn.addEventListener("click", async () => {
+      clearAlert(pAlert);
+      saveProfileBtn.disabled = true;
+      saveProfileBtn.textContent = "Kaydediliyor...";
+      
+      try {
+        // Text verilerini kaydet
+        await apiFetch("/api/users/profile", {
+          method: "PUT",
+          body: JSON.stringify({
+            email: pEmail.value.trim(),
+            schoolNumber: pSchoolNumber.value.trim(),
+            phone: pPhone.value.trim(),
+            address: pAddress.value.trim(),
+            bio: pBio.value.trim()
+          })
+        });
+
+        // Resim varsa yükle
+        if (pAvatarInput && pAvatarInput.files.length > 0) {
+          const fd = new FormData();
+          fd.append("avatar", pAvatarInput.files[0]);
+          await apiFetch("/api/users/profile/avatar", {
+            method: "POST",
+            body: fd
+          });
+          pAvatarInput.value = ""; // Seçimi temizle
+          if (pAvatarName) pAvatarName.hidden = true;
+        }
+
+        setAlert(pAlert, "ok", "Profil başarıyla kaydedildi!");
+        await loadProfile(); // Güncel resmi çekmek için
+        setTimeout(() => closeModal(profileModal), 1500);
+      } catch (e) {
+        setAlert(pAlert, "err", e.message || "Profil güncellenemedi.");
+      } finally {
+        saveProfileBtn.disabled = false;
+        saveProfileBtn.textContent = "Değişiklikleri Kaydet";
+      }
+    });
+  }
+
+  // İlk yüklemede avatari çek
+  loadProfile();
+
+
+
   setInterval(() => {
     if (activeClassId) checkStudentLiveStatus();
   }, 5000);
+
+  // =========================================
+  // YENİ: İNTERAKTİF SUNUM EDİTÖRÜ MANTIĞI
+  // =========================================
+  let presSlides = [];
+  let activePresSlideId = null;
+
+  function makeId(prefix) {
+    return prefix + '_' + Math.random().toString(36).substr(2, 9);
+  }
+
+  function initPresentationEditor() {
+    if (presSlides.length === 0) {
+      presSlides.push({ id: makeId("slide"), layout: "title", title: "Ana Başlık", body: "Alt başlık veya içerik ekleyin..." });
+      activePresSlideId = presSlides[0].id;
+    }
+    
+    const assignSel = document.getElementById("presAssignmentSelect");
+    if (assignSel) {
+      assignSel.innerHTML = "";
+      if (!activeClassId || assignmentsCache.length === 0) {
+        assignSel.innerHTML = "<option value=''>Ödev bulunamadı</option>";
+        assignSel.disabled = true;
+      } else {
+        assignSel.disabled = false;
+        const as = [...assignmentsCache].sort((a,b)=> (a.due||"").localeCompare(b.due||""));
+        as.forEach(a => {
+          const opt = document.createElement("option");
+          opt.value = a.id;
+          opt.textContent = `${a.title} (Son: ${a.due ? fmtOnlyDate(a.due) : "—"})`;
+          assignSel.appendChild(opt);
+        });
+      }
+    }
+
+    renderPresThumbnails();
+    renderActivePresSlide();
+  }
+
+  window.initPresentationEditor = initPresentationEditor;
+
+  function renderPresThumbnails() {
+    const container = document.getElementById("presThumbnails");
+    if (!container) return;
+    container.innerHTML = "";
+    
+    presSlides.forEach((slide, index) => {
+      const el = document.createElement("div");
+      el.className = `pres-thumb ${slide.id === activePresSlideId ? 'active' : ''}`;
+      el.innerHTML = `
+        <div class="pres-thumb-num">${index + 1}</div>
+        <div style="font-size:10px; text-align:center; padding:5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; width:100%;">
+          ${slide.title ? slide.title.substring(0,15) : 'Boş Slayt'}
+        </div>
+      `;
+      el.onclick = () => {
+        activePresSlideId = slide.id;
+        renderPresThumbnails();
+        renderActivePresSlide();
+      };
+      container.appendChild(el);
+    });
+  }
+
+  function renderActivePresSlide() {
+    const canvas = document.getElementById("presCanvas");
+    const slide = presSlides.find(s => s.id === activePresSlideId);
+    if (!canvas || !slide) return;
+    
+    const theme = document.getElementById("presThemeSelect")?.value || "theme-academic";
+    const transition = document.getElementById("presTransitionSelect")?.value || "slide";
+    
+    canvas.className = `pres-slide ${theme} layout-${slide.layout} transition-${transition}`;
+    
+    canvas.style.animation = 'none';
+    canvas.offsetHeight; 
+    canvas.style.animation = null;
+
+    if (slide.layout === "title") {
+      canvas.innerHTML = `
+        <div class="p-title" contenteditable="true" data-field="title">${slide.title}</div>
+        <div class="p-body" contenteditable="true" data-field="body">${slide.body}</div>
+      `;
+    } else if (slide.layout === "content") {
+      canvas.innerHTML = `
+        <div class="p-title" contenteditable="true" data-field="title">${slide.title}</div>
+        <div class="p-body" contenteditable="true" data-field="body">${slide.body}</div>
+      `;
+    } else if (slide.layout === "image") {
+      canvas.innerHTML = `
+        <div class="p-image-placeholder">🖼️ Görsel Alanı</div>
+        <div class="p-text-col">
+          <div class="p-title" contenteditable="true" data-field="title">${slide.title}</div>
+          <div class="p-body" contenteditable="true" data-field="body">${slide.body}</div>
+        </div>
+      `;
+    } else if (slide.layout === "quote") {
+      canvas.innerHTML = `
+        <div class="p-body" contenteditable="true" data-field="body">${slide.body}</div>
+        <div class="p-title" contenteditable="true" data-field="title">${slide.title}</div>
+      `;
+    }
+
+    const editables = canvas.querySelectorAll("[contenteditable]");
+    editables.forEach(el => {
+      el.addEventListener("input", (e) => {
+        const field = e.target.getAttribute("data-field");
+        if (field) {
+          slide[field] = e.target.innerHTML;
+          clearTimeout(window.presThumbTimer);
+          window.presThumbTimer = setTimeout(renderPresThumbnails, 500);
+        }
+      });
+    });
+
+    document.querySelectorAll(".layout-btn").forEach(b => {
+      b.classList.toggle("active", b.dataset.layout === slide.layout);
+    });
+  }
+
+  document.getElementById("addSlideBtn")?.addEventListener("click", () => {
+    const newSlide = { id: makeId("slide"), layout: "content", title: "Yeni Slayt", body: "<ul><li>İlk madde...</li></ul>" };
+    presSlides.push(newSlide);
+    activePresSlideId = newSlide.id;
+    renderPresThumbnails();
+    renderActivePresSlide();
+  });
+
+  document.getElementById("deleteSlideBtn")?.addEventListener("click", () => {
+    if (presSlides.length <= 1) return alert("En az bir slayt olmalı!");
+    const idx = presSlides.findIndex(s => s.id === activePresSlideId);
+    if (idx > -1) {
+      presSlides.splice(idx, 1);
+      activePresSlideId = presSlides[Math.max(0, idx - 1)].id;
+      renderPresThumbnails();
+      renderActivePresSlide();
+    }
+  });
+
+  document.querySelectorAll(".layout-btn").forEach(b => {
+    b.addEventListener("click", (e) => {
+      const layout = e.target.dataset.layout;
+      const slide = presSlides.find(s => s.id === activePresSlideId);
+      if (slide) {
+        slide.layout = layout;
+        renderActivePresSlide();
+      }
+    });
+  });
+
+  document.getElementById("presThemeSelect")?.addEventListener("change", renderActivePresSlide);
+  document.getElementById("presTransitionSelect")?.addEventListener("change", renderActivePresSlide);
+
+  document.getElementById("presAiGenerateBtn")?.addEventListener("click", async () => {
+    const alertEl = document.getElementById("presAlert");
+    const promptTxt = prompt("Hangi konuda bir sunum hazırlamak istiyorsunuz? (Örn: Güneş Sistemi, Yapay Zeka Tarihi vb.)");
+    if (!promptTxt || !promptTxt.trim()) return;
+
+    setAlert(alertEl, "warn", "AI sunum taslağını oluşturuyor, lütfen bekleyin...");
+    try {
+      const aiPrompt = `Ben bir öğrenciyim. Lütfen bana "${promptTxt}" konusunda 4 slaytlık kısa bir sunum içeriği oluştur. Çıktıyı SADECE JSON formatında ver, başında veya sonunda markdown (\`\`\`json) kullanma. Format şu şekilde olmalı: [{"layout":"title","title":"...","body":"..."},{"layout":"content","title":"...","body":"..."}]. Mümkünse title, content, quote şablonlarını (layout alanı için) kullan.`;
+      const data = await apiFetch("/api/ai/ask", {
+        method: "POST",
+        body: JSON.stringify({ prompt: aiPrompt, classId: activeClassId })
+      });
+      
+      let jsonStr = data.reply.trim();
+      if (jsonStr.startsWith("```json")) jsonStr = jsonStr.replace(/```json/g, "");
+      if (jsonStr.startsWith("```")) jsonStr = jsonStr.replace(/```/g, "");
+      if (jsonStr.endsWith("```")) jsonStr = jsonStr.replace(/```/g, "");
+
+      const newSlides = JSON.parse(jsonStr.trim());
+      if (Array.isArray(newSlides) && newSlides.length > 0) {
+        presSlides = newSlides.map(s => ({
+          id: makeId("slide"),
+          layout: ["title", "content", "image", "quote"].includes(s.layout) ? s.layout : "content",
+          title: s.title || "Başlık",
+          body: s.body || "İçerik"
+        }));
+        activePresSlideId = presSlides[0].id;
+        setAlert(alertEl, "ok", "Taslak başarıyla oluşturuldu!");
+        renderPresThumbnails();
+        renderActivePresSlide();
+        setTimeout(() => clearAlert(alertEl), 3000);
+      } else {
+        throw new Error("AI geçerli bir dizi dönmedi.");
+      }
+    } catch (err) {
+      setAlert(alertEl, "err", "Taslak oluşturulamadı. (Hata: JSON formatı alınamadı)");
+      console.error(err);
+    }
+  });
+
+  document.getElementById("submitPresBtn")?.addEventListener("click", async () => {
+    const assignId = document.getElementById("presAssignmentSelect")?.value;
+    const alertEl = document.getElementById("presAlert");
+    const theme = document.getElementById("presThemeSelect")?.value || "theme-academic";
+    const transition = document.getElementById("presTransitionSelect")?.value || "slide";
+
+    if (!activeClassId || !assignId) {
+      return setAlert(alertEl, "err", "Lütfen bir ödev seçin.");
+    }
+    if (presSlides.length === 0) {
+      return setAlert(alertEl, "err", "En az bir slayt olmalı.");
+    }
+
+    const btn = document.getElementById("submitPresBtn");
+    btn.disabled = true;
+    btn.textContent = "Teslim Ediliyor...";
+    setAlert(alertEl, "warn", "Sunum gönderiliyor...");
+
+    const presentationData = {
+      theme: theme,
+      transition: transition,
+      slides: presSlides
+    };
+    const jsonBlob = new Blob([JSON.stringify(presentationData)], { type: "application/json" });
+    const file = new File([jsonBlob], "sunum_verisi.json", { type: "application/json" });
+
+    const assignmentObj = assignmentsCache.find(a => a.id === assignId);
+    const classObj = myClassesCache.find(c => c.id === activeClassId);
+
+    const fd = new FormData();
+    fd.append("classId", activeClassId);
+    fd.append("assignmentId", assignId);
+    if(assignmentObj) {
+      fd.append("course", assignmentObj.course);
+      fd.append("title", assignmentObj.title);
+    }
+    if(classObj) {
+      fd.append("teacherId", classObj.teacherId);
+    }
+    fd.append("studentName", me.name || "Öğrenci");
+    fd.append("studentNote", "Sistem üzerinden sunum hazırlandı.");
+    fd.append("file", file);
+    fd.append("isPresentation", "true");
+
+    try {
+      const data = await apiFetch("/api/submissions/upload", {
+        method: "POST",
+        body: fd
+      });
+      setAlert(alertEl, "ok", "Sunum başarıyla teslim edildi!");
+      setTimeout(() => {
+        clearAlert(alertEl);
+        setView("history");
+        selectHistorySubmission(data.submission.id);
+      }, 2000);
+    } catch (err) {
+      setAlert(alertEl, "err", err.message);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = "🚀 Teslim Et";
+    }
+  });
 
 })();

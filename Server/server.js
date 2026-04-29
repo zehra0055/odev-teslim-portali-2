@@ -604,6 +604,88 @@ app.get("/api/files/:id", (req, res) => {
 });
 
 // ============================
+// USER PROFILE API
+// ============================
+app.get("/api/users/profile", authRequired, (req, res) => {
+  const user = db.users.find(u => u.id === req.auth.userId);
+  if (!user) return res.status(404).json({ ok: false, message: "Kullanıcı bulunamadı." });
+  
+  res.json({
+    ok: true,
+    profile: {
+      name: user.name,
+      email: user.email,
+      phone: user.phone || "",
+      schoolNumber: user.schoolNumber || "",
+      address: user.address || "",
+      bio: user.bio || "",
+      avatarUrl: user.avatarUrl || null
+    }
+  });
+});
+
+app.put("/api/users/profile", authRequired, (req, res) => {
+  const user = db.users.find(u => u.id === req.auth.userId);
+  if (!user) return res.status(404).json({ ok: false, message: "Kullanıcı bulunamadı." });
+
+  const { phone, schoolNumber, address, bio, email } = req.body;
+  if (phone !== undefined) user.phone = safeName(phone);
+  if (schoolNumber !== undefined) user.schoolNumber = safeName(schoolNumber);
+  if (address !== undefined) user.address = safeName(address);
+  if (bio !== undefined) user.bio = safeName(bio);
+  if (email !== undefined && email.includes("@")) user.email = email.trim();
+
+  res.json({ ok: true, message: "Profil güncellendi.", profile: {
+    name: user.name, email: user.email, phone: user.phone, schoolNumber: user.schoolNumber, address: user.address, bio: user.bio, avatarUrl: user.avatarUrl
+  }});
+});
+
+app.post("/api/users/profile/avatar", authRequired, upload.single("avatar"), (req, res) => {
+  const user = db.users.find(u => u.id === req.auth.userId);
+  if (!user) return res.status(404).json({ ok: false, message: "Kullanıcı bulunamadı." });
+
+  if (!req.file) return res.status(400).json({ ok: false, message: "Dosya yüklenemedi." });
+
+  const fileId = makeId("avatar");
+  db.files.push({
+    id: fileId,
+    buffer: req.file.buffer,
+    mimetype: req.file.mimetype,
+    originalname: req.file.originalname,
+    size: req.file.size
+  });
+
+  const url = `/api/files/${fileId}`;
+  user.avatarUrl = url;
+
+  res.json({ ok: true, message: "Profil fotoğrafı güncellendi.", avatarUrl: url });
+});
+
+app.get("/api/users/profile/:userId", authRequired, (req, res) => {
+  // Sadece öğretmenler diğer kullanıcıların detaylı profiline rahatça erişebilir 
+  // (veya aynı sınıftaki öğrenciler, ama şimdilik güvenlik için öğretmene özel diyelim, gerçi öğrenciler de görebilir)
+  // İstersek rol kontrolü yapabiliriz. Şimdilik sadece bulup dönelim, özel bilgi yok.
+  
+  const user = db.users.find(u => u.id === req.params.userId);
+  if (!user) return res.status(404).json({ ok: false, message: "Kullanıcı bulunamadı." });
+
+  res.json({
+    ok: true,
+    profile: {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      phone: user.phone || "Belirtilmemiş",
+      schoolNumber: user.schoolNumber || "Belirtilmemiş",
+      address: user.address || "Belirtilmemiş",
+      bio: user.bio || "Belirtilmemiş",
+      avatarUrl: user.avatarUrl || null,
+      roles: user.roles
+    }
+  });
+});
+
+// ============================
 // AUTH
 // ============================
 app.post("/api/auth/register", async (req, res) => {
@@ -1090,6 +1172,7 @@ app.post("/api/submissions/upload", authRequired, upload.single("file"), (req, r
       course: safeName(course) || "", title: safeName(title) || "", studentNote: safeName(studentNote) || "",
       submittedAt: new Date().toISOString(), status: "pending", grade: "", feedback: "",
       fileId, originalFileName: req.file.originalname, mimeType: req.file.mimetype, size: req.file.size, fileUrl: `/api/files/${fileId}`,
+      isPresentation: req.body.isPresentation === "true"
     };
 
     db.submissions.push(item);

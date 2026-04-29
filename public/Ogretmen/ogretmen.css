@@ -669,9 +669,170 @@ input:focus, textarea:focus, select:focus{
 .chat-main-empty { flex: 1; display: flex; align-items: center; justify-content: center; color: var(--muted); font-weight: bold; background: #f8fafc; }
 
 /* KRİTİK DÜZELTME: display:flex olan elemanların gizlenmeme hatasını çözer! */
+/* KRİTİK DÜZELTME: display:flex olan elemanların gizlenmeme hatasını çözer! */
 .chat-main[hidden],
 .chat-settings[hidden],
 .chat-main-empty[hidden],
 #groupSettingsAlert[hidden] {
   display: none !important;
 }
+
+/* =========================================
+   İNTERAKTİF SUNUM OYNATICI (PLAYER)
+========================================= */
+.pres-player-overlay {
+  position: fixed;
+  inset: 0;
+  background: #000;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+}
+.pres-player-overlay[hidden] {
+  display: none !important;
+}
+.pres-player-toolbar {
+  height: 50px;
+  padding: 0 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: rgba(0,0,0,0.5);
+  backdrop-filter: blur(5px);
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  z-index: 10;
+  transition: opacity 0.3s;
+}
+.pres-player-overlay:not(:hover) .pres-player-toolbar {
+  opacity: 0;
+}
+.pres-player-main {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  overflow: hidden;
+}
+.pres-player-canvas {
+  width: 100%;
+  max-width: 1200px;
+  aspect-ratio: 16 / 9;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  perspective: 1000px;
+}
+
+.pres-nav-btn {
+  background: rgba(255,255,255,0.1);
+  color: white;
+  border: none;
+  font-size: 32px;
+  width: 60px;
+  height: 100px;
+  cursor: pointer;
+  border-radius: 8px;
+  transition: 0.2s;
+  position: absolute;
+  z-index: 10;
+}
+.pres-nav-btn:hover { background: rgba(255,255,255,0.3); }
+#presPrevBtn { left: 20px; }
+#presNextBtn { right: 20px; }
+
+.pres-player-footer {
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0,0,0,0.5);
+  backdrop-filter: blur(5px);
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  z-index: 10;
+}
+.pres-dots { display: flex; gap: 8px; }
+.pres-dot {
+  width: 10px; height: 10px;
+  border-radius: 5px;
+  background: rgba(255,255,255,0.3);
+  cursor: pointer;
+  transition: 0.2s;
+}
+.pres-dot.active {
+  background: white;
+  width: 20px;
+}
+
+/* Oynatıcı içindeki slayt stilleri (Öğrenci CSS ile aynı mantık) */
+.pres-slide {
+  width: 100%;
+  height: 100%;
+  position: absolute;
+  top: 0; left: 0;
+  border-radius: 16px;
+  padding: 60px;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+}
+
+.p-title { padding: 10px; }
+.p-body { padding: 10px; }
+
+.layout-title { justify-content: center; align-items: center; text-align: center; }
+.layout-title .p-title { font-size: 56px; font-weight: 900; width: 100%; margin-bottom: 30px; }
+.layout-title .p-body { font-size: 28px; width: 80%; opacity: 0.8; }
+
+.layout-content { justify-content: flex-start; }
+.layout-content .p-title { font-size: 42px; font-weight: 800; width: 100%; margin-bottom: 30px; }
+.layout-content .p-body { font-size: 28px; flex: 1; width: 100%; }
+.layout-content .p-body ul { padding-left: 40px; }
+.layout-content .p-body li { margin-bottom: 15px; }
+
+.layout-image { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; align-items: center; }
+.layout-image .p-image-placeholder { background: rgba(0,0,0,0.1); border-radius: 16px; height: 100%; display: flex; align-items: center; justify-content: center; font-size: 60px; color: rgba(0,0,0,0.3); border: 2px dashed rgba(0,0,0,0.2); }
+.layout-image .p-text-col { display: flex; flex-direction: column; gap: 30px; }
+.layout-image .p-title { font-size: 36px; font-weight: 800; padding: 0; }
+.layout-image .p-body { font-size: 24px; padding: 0; }
+
+.layout-quote { justify-content: center; align-items: center; text-align: center; }
+.layout-quote .p-body { font-size: 48px; font-weight: bold; font-style: italic; width: 80%; position: relative; }
+.layout-quote .p-body::before { content: '"'; font-size: 100px; position: absolute; left: -50px; top: -30px; opacity: 0.2; }
+.layout-quote .p-title { font-size: 24px; opacity: 0.7; margin-top: 30px; }
+
+/* Temalar */
+.theme-academic { background: #ffffff; color: #1e293b; border: 16px solid #f8fafc; }
+.theme-academic .p-title { color: #0f172a; border-bottom: 3px solid #cbd5e1; padding-bottom: 15px; }
+
+.theme-modern { background: linear-gradient(135deg, #f0f9ff, #e0f2fe); color: #0f172a; }
+.theme-modern .p-title { color: #0284c7; }
+
+.theme-cyberpunk { background: #0f172a; color: #f8fafc; border: 4px solid #a855f7; box-shadow: inset 0 0 40px rgba(168, 85, 247, 0.3); }
+.theme-cyberpunk .p-title { color: #22d3ee; text-shadow: 0 0 12px rgba(34, 211, 238, 0.6); }
+.theme-cyberpunk .p-body { color: #e2e8f0; }
+
+.theme-space { background: radial-gradient(circle at center, #1e1b4b, #000000); color: #e0e7ff; }
+.theme-space .p-title { color: #a5b4fc; }
+
+.theme-minimalist { background: #fafafa; color: #111827; }
+.theme-minimalist .p-title { font-weight: 300; letter-spacing: 3px; }
+
+.theme-playful { background: #fef08a; color: #7c2d12; border: 20px solid #fde047; border-radius: 30px; }
+.theme-playful .p-title { color: #ea580c; font-weight: 900; }
+
+/* Oynatıcı Geçişleri */
+.transition-fade { animation: pFadeIn 0.5s ease; }
+@keyframes pFadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+.transition-slide { animation: pSlideIn 0.5s ease; }
+@keyframes pSlideIn { from { transform: translateX(100px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+
+.transition-zoom { animation: pZoomIn 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+@keyframes pZoomIn { from { transform: scale(0.7); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+
+.transition-flip { animation: pFlipIn 0.7s ease; }
+@keyframes pFlipIn { from { transform: rotateY(90deg); opacity: 0; } to { transform: rotateY(0); opacity: 1; } }

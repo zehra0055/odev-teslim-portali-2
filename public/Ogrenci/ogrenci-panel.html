@@ -40,10 +40,14 @@
             <div class="notif-list" id="notifList">
               <div class="notif-item">Henüz bildirim yok.</div>
             </div>
+            </div>
           </div>
-        </div>
 
-        <div class="who" id="who">👩‍🎓 Öğrenci</div>
+        <div class="who" style="display:flex; align-items:center; gap:8px; padding:4px 12px 4px 4px;">
+          <img id="topAvatar" src="" alt="" style="width:28px; height:28px; border-radius:50%; object-fit:cover; display:none; border:2px solid #fff; box-shadow:0 2px 4px rgba(0,0,0,0.1);" />
+          <span id="whoText" style="margin-right:4px;">👩‍🎓 Öğrenci</span>
+        </div>
+        <button class="btn ghost" id="profileBtn" style="color: var(--primary); display:flex; align-items:center; gap:5px;">⚙️ Profilim</button>
         <button class="btn ghost" id="logoutBtn">Çıkış</button>
       </div>
     </div>
@@ -70,6 +74,7 @@
         <div class="nav">
           <button class="navbtn active" data-view="dashboard">📊 Dashboard</button>
           <button class="navbtn" data-view="homework-editor" style="color:#4f46e5;">📝 Ödev Hazırla</button>
+          <button class="navbtn" data-view="presentation-editor" style="color:#10b981;">📽️ Sunum Hazırla</button>
           <button class="navbtn" data-view="assignments">📌 Ödevler</button>
           <button class="navbtn" data-view="submit">📤 Dosya Teslim Et</button>
           <button class="navbtn" data-view="history">🕘 Geçmiş</button>
@@ -297,6 +302,81 @@
               <div id="aiHelpResultText">...</div>
             </div>
 
+          </div>
+        </div>
+      </section>
+
+      <!-- YENİ: İNTERAKTİF SUNUM EDİTÖRÜ -->
+      <section class="view" id="view-presentation-editor">
+        <div class="page-head">
+          <div>
+            <h1>📽️ Sunum Hazırla</h1>
+            <p class="muted">Slaytlarını oluştur, temaları seç ve animasyonlu sunumunu teslim et.</p>
+          </div>
+          <div class="chip" id="presClassChip">Sınıf: —</div>
+        </div>
+
+        <div class="presentation-builder">
+          <div class="pres-sidebar panel">
+            <div style="font-weight:900; margin-bottom:10px; color:#1e3a5f;">Slaytlar</div>
+            <div id="presThumbnails" class="pres-thumbnails">
+              <!-- Thumbnails will be injected here -->
+            </div>
+            <button class="btn ghost block" id="addSlideBtn" style="margin-top:10px; border:1px dashed var(--primary); color:var(--primary);">+ Yeni Slayt</button>
+            <div class="split"></div>
+            <div style="font-size:12px; color:var(--muted); font-weight:800; margin-bottom:6px;">Yapay Zeka Destekli</div>
+            <button class="btn primary block" id="presAiGenerateBtn" style="background:linear-gradient(135deg, #ec4899, #8b5cf6); border:none; padding:0 8px; font-size:12px;">✨ AI İle Taslak Çıkar</button>
+          </div>
+          
+          <div class="pres-main panel">
+            <div class="pres-toolbar">
+              <div class="field" style="margin:0; min-width:180px;">
+                <label>Teslim Edilecek Ödev</label>
+                <select id="presAssignmentSelect"></select>
+              </div>
+              <div class="field" style="margin:0; min-width:120px;">
+                <label>Tema</label>
+                <select id="presThemeSelect">
+                  <option value="theme-academic">Akademik</option>
+                  <option value="theme-modern">Modern</option>
+                  <option value="theme-cyberpunk">Siberpunk</option>
+                  <option value="theme-space">Uzay</option>
+                  <option value="theme-minimalist">Minimalist</option>
+                  <option value="theme-playful">Eğlenceli</option>
+                </select>
+              </div>
+              <div class="field" style="margin:0; min-width:100px;">
+                <label>Geçiş</label>
+                <select id="presTransitionSelect">
+                  <option value="slide">Kayarak (Slide)</option>
+                  <option value="fade">Yumuşak (Fade)</option>
+                  <option value="zoom">Büyüyerek (Zoom)</option>
+                  <option value="flip">Dönerek (Flip)</option>
+                </select>
+              </div>
+              <div style="flex:1;"></div>
+              <button class="btn primary" id="submitPresBtn" style="background:#10b981; border-color:#10b981;">🚀 Teslim Et</button>
+            </div>
+            
+            <div class="split" style="margin:12px 0;"></div>
+            
+            <div class="pres-slide-toolbar">
+              <span style="font-size:12px; font-weight:bold; color:var(--muted);">Şablon Değiştir:</span>
+              <button class="btn ghost btn-sm layout-btn active" data-layout="title">Kapak</button>
+              <button class="btn ghost btn-sm layout-btn" data-layout="content">İçerik</button>
+              <button class="btn ghost btn-sm layout-btn" data-layout="image">Görsel</button>
+              <button class="btn ghost btn-sm layout-btn" data-layout="quote">Alıntı</button>
+              <div style="flex:1;"></div>
+              <button class="btn ghost btn-sm" style="color:#ef4444; border-color:#fca5a5;" id="deleteSlideBtn">🗑️ Slaytı Sil</button>
+            </div>
+
+            <div class="pres-canvas-wrapper" id="presCanvasWrapper">
+              <!-- Slayt render alanı -->
+              <div id="presCanvas" class="pres-slide theme-academic layout-title transition-slide">
+                <!-- İçerik JS'den gelecek -->
+              </div>
+            </div>
+            <div class="alert" id="presAlert" hidden style="margin-top:10px;"></div>
           </div>
         </div>
       </section>
@@ -620,6 +700,58 @@
     </div>
   </div>
 
+  <div class="modal" id="profileModal" aria-hidden="true">
+    <div class="modal-card" role="dialog" aria-modal="true" style="max-width: 500px; padding:0; overflow:hidden;">
+      <div class="modal-top" style="background: linear-gradient(135deg, var(--primary), var(--ai-color)); color:white; border-bottom:none; padding:20px;">
+        <div class="modal-title" style="color:white; font-size: 18px; font-weight:800;">⚙️ Hesap Profilim</div>
+        <button class="icon-btn" data-close="profileModal" aria-label="Kapat" type="button" style="color:white; background:rgba(0,0,0,0.2); border-radius:50%; width:32px; height:32px; display:flex; align-items:center; justify-content:center; opacity:1;">✕</button>
+      </div>
+      <div style="padding: 20px; background:#f8fafc;">
+        
+        <div style="display:flex; gap:20px; margin-bottom:20px; align-items:center; background:white; padding:15px; border-radius:12px; box-shadow:0 2px 8px rgba(0,0,0,0.03); border: 1px solid #e2e8f0;">
+          <div style="position:relative;">
+            <img id="profileAvatarPreview" src="" alt="Avatar" style="width:70px; height:70px; border-radius:50%; object-fit:cover; border:3px solid var(--primary); display:none; background:#e2e8f0;" />
+            <div id="profileAvatarInitials" style="width:70px; height:70px; border-radius:50%; background:#e2e8f0; display:flex; align-items:center; justify-content:center; font-size:24px; font-weight:bold; color:#94a3b8;">👤</div>
+          </div>
+          <div style="flex:1;">
+            <div style="font-weight:bold; color:#1e293b; margin-bottom:4px; font-size:14px;">Profil Fotoğrafı</div>
+            <div style="font-size:11px; color:#64748b; margin-bottom:8px;">Sadece resim dosyaları. (Önerilen: 1:1 oran)</div>
+            <label class="btn ghost" style="padding: 6px 12px; font-size:12px; cursor:pointer; background:#f1f5f9; color:#334155; border:1px solid #cbd5e1; border-radius:6px;">
+              📷 Fotoğraf Seç
+              <input type="file" id="profileAvatarInput" accept="image/*" hidden />
+            </label>
+            <div id="profileAvatarName" style="font-size:11px; color:#10b981; margin-top:6px; font-weight:600;" hidden>Seçildi</div>
+          </div>
+        </div>
+
+        <div style="background:white; padding:20px; border-radius:12px; box-shadow:0 2px 8px rgba(0,0,0,0.03); border: 1px solid #e2e8f0; display:grid; grid-template-columns: 1fr 1fr; gap:15px;">
+          <div class="field" style="grid-column: span 2;">
+            <label style="font-size:12px; font-weight:bold; color:#475569;">E-Posta Adresi</label>
+            <input type="email" id="profileEmail" placeholder="Örn: ornek@email.com" style="border:1px solid #cbd5e1; background:white; color:#1e293b;" />
+          </div>
+          <div class="field">
+            <label style="font-size:12px; font-weight:bold; color:#475569;">Okul Numarası</label>
+            <input type="text" id="profileSchoolNumber" placeholder="Örn: 2023123" style="border:1px solid #cbd5e1;" />
+          </div>
+          <div class="field">
+            <label style="font-size:12px; font-weight:bold; color:#475569;">Cep Telefonu</label>
+            <input type="tel" id="profilePhone" placeholder="Örn: 555 123 4567" style="border:1px solid #cbd5e1;" />
+          </div>
+          <div class="field" style="grid-column: span 2;">
+            <label style="font-size:12px; font-weight:bold; color:#475569;">Ev Adresi</label>
+            <input type="text" id="profileAddress" placeholder="Sokak, mahalle, ilçe..." style="border:1px solid #cbd5e1;" />
+          </div>
+          <div class="field" style="grid-column: span 2;">
+            <label style="font-size:12px; font-weight:bold; color:#475569;">Kendinizden Kısaca Bahsedin</label>
+            <textarea id="profileBio" rows="3" placeholder="Hobileriniz, ilgi alanlarınız..." style="border:1px solid #cbd5e1; resize:vertical;"></textarea>
+          </div>
+        </div>
+
+        <button class="btn primary block" id="saveProfileBtn" style="margin-top: 20px; padding:12px; font-size:14px; font-weight:bold; border-radius:8px; box-shadow:0 4px 6px rgba(0,0,0,0.1);">Değişiklikleri Kaydet</button>
+        <div class="alert" id="profileAlert" hidden style="margin-top:15px; border-radius:8px;"></div>
+      </div>
+    </div>
+  </div>
   <script src="ogrenci.js" defer></script>
 </body>
 </html>
