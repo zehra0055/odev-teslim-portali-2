@@ -113,7 +113,8 @@ const views = {
   "presentation-editor": document.getElementById("view-presentation-editor"),
   history: document.getElementById("view-history"),
   groups: document.getElementById("view-groups"), // YENİ: Gruplar
-  live: document.getElementById("view-live")
+  live: document.getElementById("view-live"),
+  flashcards: document.getElementById("view-flashcards")
 };
 
 const classSelect = document.getElementById("classSelect");
@@ -609,6 +610,24 @@ function setView(name){
   if(name === 'presentation-editor') {
     initPresentationEditor();
   }
+  if(name === 'flashcards') {
+    fillFlashcardAssignmentSelect();
+  }
+}
+
+function fillFlashcardAssignmentSelect() {
+  const sel = document.getElementById("flashcardAssignmentSelect");
+  if (!sel) return;
+  sel.innerHTML = '<option value="">-- Serbest Metin Kullan --</option>';
+  if (!activeClassId) return;
+  
+  const as = [...assignmentsCache].sort((a,b)=> (a.due||"").localeCompare(b.due||""));
+  as.forEach(a => {
+    const opt = document.createElement("option");
+    opt.value = a.id;
+    opt.textContent = `${a.course} - ${a.title}`;
+    sel.appendChild(opt);
+  });
 }
 
 function setActiveClassChip(){
@@ -913,10 +932,17 @@ document.querySelectorAll("[data-close]").forEach(btn => {
     if (el) closeModal(el);
   });
 });
-[joinModal, findModal, document.getElementById("createGroupModal")].forEach(m => {
+[joinModal, findModal, document.getElementById("createGroupModal"), document.getElementById("calendarModal")].forEach(m => {
   if (!m) return;
   m.addEventListener("click", (e) => { if (e.target === m) closeModal(m); });
 });
+
+const openCalendarBtn = document.getElementById("openCalendarBtn");
+if(openCalendarBtn) {
+  openCalendarBtn.addEventListener("click", () => {
+    openModal(document.getElementById("calendarModal"));
+  });
+}
 
 // ========= join/search =========
 async function joinByCode(codeRaw){
@@ -2105,3 +2131,422 @@ setInterval(() => {
   });
 
 })();
+
+// ========= YENİ: SİHİRLİ BİLGİ KARTLARI (FLASHCARDS) LOKJİĞİ =========
+let cachedFlashcards = [];
+let popupInterval = null;
+let popupCount = 0;
+const MAX_POPUPS = 4;
+
+const generateFlashcardsBtn = document.getElementById("generateFlashcardsBtn");
+if (generateFlashcardsBtn) {
+  generateFlashcardsBtn.addEventListener("click", async () => {
+    const assignSel = document.getElementById("flashcardAssignmentSelect");
+    const textEl = document.getElementById("flashcardSourceText");
+    const container = document.getElementById("flashcardContainer");
+    const loading = document.getElementById("flashcardsLoading");
+    const alertEl = document.getElementById("flashcardAlert");
+    
+    if (!container || !loading || !alertEl) return;
+    
+    let text = "";
+    if (assignSel && assignSel.value) {
+      const a = assignmentsCache.find(x => x.id === assignSel.value);
+      if (a && a.desc) text = a.title + "\n" + a.desc;
+      else text = a ? a.title : "";
+    } else if (textEl) {
+      text = textEl.value.trim();
+    }
+    
+    if (!text) {
+      setAlert(alertEl, "err", "Lütfen bir ödev seçin veya metin yapıştırın.");
+      return;
+    }
+    
+    clearAlert(alertEl);
+    container.innerHTML = "";
+    loading.hidden = false;
+    generateFlashcardsBtn.disabled = true;
+    
+    const prompt = `Aşağıdaki metni analiz et ve içindeki en önemli bilgileri 5 ila 10 adet soru-cevap formatında çıkar. 
+Çıktıyı SADECE JSON formatında bir liste olarak ver. Başka hiçbir açıklama yazma.
+Örnek format: [{"q": "Hücrenin yönetim merkezi nedir?", "a": "Çekirdektir"}]
+Metin:
+${text}`;
+
+    try {
+      const data = await apiFetch("/api/ai/ask", {
+        method: "POST",
+        body: JSON.stringify({ prompt: prompt, classId: activeClassId || "" })
+      });
+      
+      let reply = data.reply || "";
+      reply = reply.replace(/```json/g, "").replace(/```/g, "").trim();
+      
+      let cards = [];
+      try {
+        const firstBracket = reply.indexOf('[');
+        const lastBracket = reply.lastIndexOf(']');
+        if (firstBracket !== -1 && lastBracket !== -1) {
+          reply = reply.substring(firstBracket, lastBracket + 1);
+        }
+        cards = JSON.parse(reply);
+      } catch (e) {
+        throw new Error("Yapay zeka JSON formatında cevap veremedi.");
+      }
+      
+      if (!Array.isArray(cards) || cards.length === 0) {
+        throw new Error("Kart verisi boş geldi.");
+      }
+      
+      cachedFlashcards = cards; // Önbelleğe al (popup için)
+      loading.hidden = true;
+      generateFlashcardsBtn.disabled = false;
+      
+      // Render Cards
+      cards.forEach((card, index) => {
+        const div = document.createElement("div");
+        div.className = "flashcard transition-zoom";
+        div.style.animationDelay = `${index * 0.1}s`;
+        div.style.height = "250px"; // Input sığsın diye biraz daha uzun
+        
+        div.innerHTML = `
+          <div class="flashcard-inner">
+            <div class="flashcard-front" style="padding: 15px;">
+              <div class="fc-title">Soru ${index + 1}</div>
+              <div class="fc-text" style="margin-bottom:10px;">${card.q || card.question || 'Soru yok'}</div>
+              <input type="text" class="fc-answer-input" placeholder="Cevabın..." style="width:100%; padding:8px; border:1px solid #d946ef; border-radius:6px; margin-bottom:10px; text-align:center;" onclick="event.stopPropagation();" />
+              <button class="btn fc-show-btn" style="background:#d946ef; color:white; border:none; width:100%; font-size:12px;" onclick="event.stopPropagation();">Cevabı Göster</button>
+            </div>
+            <div class="flashcard-back" style="padding: 15px;">
+              <div style="font-size:11px; color:#fbcfe8; font-weight:bold; margin-bottom:4px; text-transform:uppercase;">Senin Cevabın</div>
+              <div class="fc-user-answer" style="font-size:14px; margin-bottom:12px; font-style:italic; font-weight:bold; color:#fff; border-bottom: 1px dashed rgba(255,255,255,0.4); padding-bottom:6px; word-break:break-word;"></div>
+              <div class="fc-title">Gerçek Cevap</div>
+              <div class="fc-text" style="margin-bottom:12px;">${card.a || card.answer || 'Cevap yok'}</div>
+              <div style="font-size:12px; margin-bottom:8px;">Nasıl gittin?</div>
+              <div style="display:flex; gap:5px; width:100%;">
+                <button class="btn fc-correct-btn" style="flex:1; background:#10b981; color:white; border:none; font-size:14px; font-weight:900; letter-spacing:0.5px; padding:8px 0;" onclick="event.stopPropagation();">Doğru 🎉</button>
+                <button class="btn fc-wrong-btn" style="flex:1; background:#ef4444; color:white; border:none; font-size:14px; font-weight:900; letter-spacing:0.5px; padding:8px 0; display:flex; align-items:center; justify-content:center; gap:4px;" onclick="event.stopPropagation();">Yanlış <span style="font-size:16px; font-weight:900; line-height:1;">✖</span></button>
+              </div>
+            </div>
+          </div>
+        `;
+        
+        const showBtn = div.querySelector(".fc-show-btn");
+        const correctBtn = div.querySelector(".fc-correct-btn");
+        const wrongBtn = div.querySelector(".fc-wrong-btn");
+        const input = div.querySelector(".fc-answer-input");
+        
+        showBtn.addEventListener("click", () => {
+          if (!input.value.trim()) {
+            input.style.border = "2px solid #ef4444";
+            input.placeholder = "Lütfen bir cevap yazın!";
+            return;
+          }
+          input.style.border = "1px solid #d946ef";
+          const userAnswerEl = div.querySelector(".fc-user-answer");
+          if(userAnswerEl) userAnswerEl.textContent = input.value.trim();
+          div.classList.add("is-flipped");
+        });
+        
+        correctBtn.addEventListener("click", async () => {
+          div.style.opacity = "0.5";
+          correctBtn.disabled = true;
+          wrongBtn.disabled = true;
+          shootConfetti();
+          try {
+            if (activeClassId) {
+              await apiFetch("/api/student/flashcard-score", {
+                method: "POST",
+                body: JSON.stringify({ classId: activeClassId, points: 1 })
+              });
+            }
+            correctBtn.textContent = "Kaydedildi!";
+          } catch(e) {
+            correctBtn.textContent = "Kaydedildi (Çevrimdışı)!";
+          }
+        });
+        
+        wrongBtn.addEventListener("click", () => {
+          div.classList.add("shake-wrong");
+          wrongBtn.innerHTML = "Sağlık Olsun 💔";
+          correctBtn.disabled = true;
+          wrongBtn.disabled = true;
+          setTimeout(() => {
+            div.style.opacity = "0.6";
+          }, 800);
+        });
+        
+        container.appendChild(div);
+      });
+      
+      popupCount = 0; // Reset count
+      startPopupInterval();
+      
+    } catch (err) {
+      loading.hidden = true;
+      generateFlashcardsBtn.disabled = false;
+      setAlert(alertEl, "err", err.message || "Kartlar üretilirken bir hata oluştu.");
+    }
+  });
+}
+
+function startPopupInterval() {
+  if (popupInterval) clearInterval(popupInterval);
+  // Test için 2 dakikada bir popup çıkaralım (gerçekte daha uzun olabilir)
+  popupInterval = setInterval(showRandomFlashcardPopup, 120000); 
+}
+
+function showRandomFlashcardPopup() {
+  if (!cachedFlashcards || cachedFlashcards.length === 0) {
+    if (popupInterval) clearInterval(popupInterval);
+    return;
+  }
+  
+  const randomIndex = Math.floor(Math.random() * cachedFlashcards.length);
+  const card = cachedFlashcards.splice(randomIndex, 1)[0]; // Remove from array so it doesn't repeat
+  
+  popupCount++;
+  if (popupCount >= MAX_POPUPS || cachedFlashcards.length === 0) {
+    if (popupInterval) clearInterval(popupInterval);
+  }
+  
+  const modal = document.getElementById("flashcardPopupModal");
+  if (!modal) return;
+  
+  document.getElementById("popupQuestionText").textContent = card.q || card.question;
+  document.getElementById("popupAnswerText").textContent = card.a || card.answer;
+  
+  const input = document.getElementById("popupAnswerInput");
+  input.value = "";
+  
+  const evalArea = document.getElementById("popupEvalArea");
+  evalArea.hidden = true;
+  
+  const showBtn = document.getElementById("popupShowAnswerBtn");
+  showBtn.hidden = false;
+  
+  const fc = document.getElementById("popupFlashcard");
+  fc.classList.remove("is-flipped");
+  
+  const alertEl = document.getElementById("popupAlert");
+  clearAlert(alertEl);
+  
+  openModal(modal);
+}
+
+// Popup Events
+const popupShowAnswerBtn = document.getElementById("popupShowAnswerBtn");
+if (popupShowAnswerBtn) {
+  popupShowAnswerBtn.addEventListener("click", () => {
+    const input = document.getElementById("popupAnswerInput");
+    if (!input.value.trim()) {
+      input.style.border = "2px solid #ef4444";
+      input.placeholder = "Lütfen bir cevap yazın!";
+      return;
+    }
+    input.style.border = "2px solid #e879f9";
+    const uAns = document.getElementById("popupUserAnswerText");
+    if(uAns) uAns.textContent = input.value.trim();
+    document.getElementById("popupFlashcard").classList.add("is-flipped");
+    popupShowAnswerBtn.hidden = true;
+    document.getElementById("popupEvalArea").hidden = false;
+  });
+}
+
+// Confetti Fonksiyonu
+function shootConfetti() {
+  const colors = ['#d946ef', '#8b5cf6', '#10b981', '#f59e0b', '#3b82f6'];
+  for (let i = 0; i < 60; i++) {
+    const conf = document.createElement("div");
+    conf.style.position = "fixed";
+    conf.style.left = (Math.random() * 100) + "vw";
+    conf.style.top = "-20px";
+    conf.style.width = (Math.random() * 8 + 6) + "px";
+    conf.style.height = (Math.random() * 12 + 6) + "px";
+    conf.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+    conf.style.borderRadius = Math.random() > 0.5 ? "50%" : "2px";
+    conf.style.zIndex = "10000";
+    conf.style.pointerEvents = "none";
+    document.body.appendChild(conf);
+
+    const fallDuration = Math.random() * 2 + 1.5;
+    const xOffset = (Math.random() - 0.5) * 300;
+
+    conf.animate([
+      { transform: `translate3d(0,0,0) rotate(0deg)`, opacity: 1 },
+      { transform: `translate3d(${xOffset}px, 100vh, 0) rotate(${Math.random() * 720}deg)`, opacity: 0 }
+    ], {
+      duration: fallDuration * 1000,
+      easing: "cubic-bezier(.37,0,.63,1)"
+    });
+
+    setTimeout(() => conf.remove(), fallDuration * 1000);
+  }
+}
+
+const popupCorrectBtn = document.getElementById("popupCorrectBtn");
+const popupWrongBtn = document.getElementById("popupWrongBtn");
+
+if (popupCorrectBtn) {
+  popupCorrectBtn.addEventListener("click", async () => {
+    popupCorrectBtn.disabled = true;
+    if (popupWrongBtn) popupWrongBtn.disabled = true;
+    shootConfetti();
+    try {
+      if (activeClassId) {
+        await apiFetch("/api/student/flashcard-score", {
+          method: "POST",
+          body: JSON.stringify({ classId: activeClassId, points: 1 })
+        });
+      }
+      setAlert(document.getElementById("popupAlert"), "ok", "Harikasın! Puanın eklendi!");
+    } catch(e) {
+      setAlert(document.getElementById("popupAlert"), "ok", "Harikasın!");
+    }
+    setTimeout(() => closeModal(document.getElementById("flashcardPopupModal")), 1500);
+  });
+}
+
+if (popupWrongBtn) {
+  popupWrongBtn.addEventListener("click", () => {
+    popupWrongBtn.disabled = true;
+    if (popupCorrectBtn) popupCorrectBtn.disabled = true;
+    document.getElementById("popupFlashcard").classList.add("shake-wrong");
+    popupWrongBtn.innerHTML = "Sağlık Olsun 💔";
+    setAlert(document.getElementById("popupAlert"), "err", "Sağlık olsun, bir dahakine daha dikkatli düşünelim!");
+    setTimeout(() => closeModal(document.getElementById("flashcardPopupModal")), 1800);
+  });
+}
+
+// ========= YENİ: ÇALIŞMA FASİKÜLÜ (PDF EXPORT) LOKJİĞİ =========
+const generatePdfGuideBtn = document.getElementById("generatePdfGuideBtn");
+if (generatePdfGuideBtn) {
+  generatePdfGuideBtn.addEventListener("click", async () => {
+    if (!activeClassId) {
+      alert("Lütfen önce sol taraftan bir sınıf seçin!");
+      return;
+    }
+
+    const classAssignments = assignmentsCache.filter(a => a.classId === activeClassId);
+    if (classAssignments.length === 0) {
+      alert("Bu sınıfa ait hiç ödev/konu bulunamadı. Lütfen önce öğretmenin ödev eklemesini bekleyin.");
+      return;
+    }
+
+    const originalBtnText = generatePdfGuideBtn.innerHTML;
+    generatePdfGuideBtn.innerHTML = "⏳ Yapay Zeka Fasikülü Hazırlıyor (Lütfen Bekleyin)...";
+    generatePdfGuideBtn.disabled = true;
+
+    try {
+      let combinedText = classAssignments.map(a => `Başlık: ${a.title}\nİçerik: ${a.desc || ''}`).join('\n\n');
+
+      const prompt = `Aşağıda öğrencinin bu dönemki ders/ödev konuları yer almaktadır. Lütfen bu konuları inceleyerek şunları yap:
+1. Bu konuların tümünü kapsayan genel ve akıcı bir özet (yaklaşık 150-200 kelime) yaz.
+2. Bu konulardan sınav formatında 10 adet soru ve bu soruların cevaplarını çıkar.
+Çıktıyı SADECE JSON formatında ver. Başka hiçbir açıklama yazma.
+JSON Formatı: {"summary": "Konu özeti...", "questions": [{"q": "Soru 1", "a": "Cevap 1"}]}
+Konular:
+${combinedText.substring(0, 3000)}`;
+
+      const data = await apiFetch("/api/ai/ask", {
+        method: "POST",
+        body: JSON.stringify({ prompt: prompt, classId: activeClassId })
+      });
+      
+      let reply = data.reply || "";
+      reply = reply.replace(/```json/g, "").replace(/```/g, "").trim();
+      
+      let parsedData = null;
+      try {
+        const firstBrace = reply.indexOf('{');
+        const lastBrace = reply.lastIndexOf('}');
+        if (firstBrace !== -1 && lastBrace !== -1) {
+          parsedData = JSON.parse(reply.substring(firstBrace, lastBrace + 1));
+        }
+      } catch(e) {
+        console.error("JSON Parse Hatası", e, reply);
+      }
+
+      if (!parsedData || !parsedData.questions || !parsedData.summary) {
+        alert("Fasikül üretilirken bir hata oluştu. Lütfen tekrar deneyin.");
+        return;
+      }
+
+      const activeClass = myClassesCache.find(c => c.id === activeClassId);
+      document.getElementById("pdfClassAndDate").textContent = `Sınıf: ${activeClass ? activeClass.name : ''} | Tarih: ${new Date().toLocaleDateString('tr-TR')}`;
+      
+      document.getElementById("pdfSummaryContent").textContent = parsedData.summary;
+
+      const qList = document.getElementById("pdfQuestionsList");
+      const aList = document.getElementById("pdfAnswersList");
+      qList.innerHTML = "";
+      aList.innerHTML = "";
+
+      parsedData.questions.forEach((item, index) => {
+        const qDiv = document.createElement("div");
+        qDiv.style.marginBottom = "15px";
+        qDiv.innerHTML = `<b>Soru ${index + 1}:</b> ${item.q}`;
+        qList.appendChild(qDiv);
+
+        const aDiv = document.createElement("div");
+        aDiv.style.marginBottom = "10px";
+        aDiv.innerHTML = `<b>Cevap ${index + 1}:</b> ${item.a}`;
+        aList.appendChild(aDiv);
+      });
+
+      const element = document.getElementById('pdfExportTemplate');
+      element.parentElement.style.display = 'block';
+
+      const opt = {
+        margin:       0,
+        filename:     'Sınav_Fasikülü.pdf',
+        image:        { type: 'jpeg', quality: 0.98 },
+        html2canvas:  { scale: 2, useCORS: true },
+        jsPDF:        { unit: 'in', format: 'a4', orientation: 'portrait' }
+      };
+
+      await html2pdf().set(opt).from(element).save();
+      element.parentElement.style.display = 'none';
+
+    } catch (err) {
+      console.error(err);
+      alert("Beklenmeyen bir hata oluştu: " + err.message);
+      const element = document.getElementById('pdfExportTemplate');
+      element.parentElement.style.display = 'none';
+    } finally {
+      generatePdfGuideBtn.innerHTML = originalBtnText;
+      generatePdfGuideBtn.disabled = false;
+    }
+  });
+}
+
+// ========= YENİ: OKUNMAMIŞ SOHBET BİLDİRİMİ (BADGE) =========
+async function fetchChatUnreadCount() {
+  if (!token) return;
+  try {
+    const data = await apiFetch("/api/chat/unread/count");
+    const badge = document.getElementById("chatBadge");
+    if (badge) {
+      if (data.count > 0) {
+        badge.textContent = data.count;
+        badge.hidden = false;
+      } else {
+        badge.hidden = true;
+      }
+    }
+  } catch (e) {}
+}
+
+setInterval(fetchChatUnreadCount, 5000);
+setTimeout(fetchChatUnreadCount, 1000);
+
+const _chatBtnEl = document.getElementById('chatBtn');
+if (_chatBtnEl) {
+  _chatBtnEl.addEventListener('click', async () => {
+    try {
+      await apiFetch("/api/chat/read-all", { method: "POST" });
+      fetchChatUnreadCount();
+    } catch(e) {}
+  });
+}

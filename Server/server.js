@@ -315,7 +315,8 @@ app.post("/api/chat", authRequired, (req, res) => {
     receiverId: finalReceiverId,
     senderName: user ? user.name : "Kullanıcı",
     text: safeName(text),
-    createdAt: new Date().toISOString()
+    createdAt: new Date().toISOString(),
+    read: false
   };
   db.messages.push(msg);
 
@@ -337,6 +338,22 @@ app.post("/api/chat", authRequired, (req, res) => {
   }
 
   res.json({ ok: true, message: msg });
+});
+
+// 3.5. Okunmamış Mesaj Sayısını Getir
+app.get("/api/chat/unread/count", authRequired, (req, res) => {
+  const count = db.messages.filter(m => m.receiverId === req.auth.userId && m.read === false).length;
+  res.json({ ok: true, count });
+});
+
+// 3.6. Tüm Mesajları Okundu İşaretle
+app.post("/api/chat/read-all", authRequired, (req, res) => {
+  db.messages.forEach(m => {
+    if (m.receiverId === req.auth.userId) {
+      m.read = true;
+    }
+  });
+  res.json({ ok: true });
 });
 
 // YENİ: Öğrenci Performans & Rozet Hesaplama Fonksiyonu
@@ -402,6 +419,13 @@ function calcStudentPerformance(classId, studentId) {
   const override = (db.performanceOverrides || []).find(o => o.classId === classId && o.studentId === studentId);
   if (override) {
     score = override.score;
+  }
+
+  // YENİ: Sihirli Kartlar Başarı Puanları (Gamification)
+  const fcScoreObj = (db.flashcardScores || []).find(o => o.classId === classId && o.studentId === studentId);
+  if (fcScoreObj && fcScoreObj.points > 0) {
+    score += fcScoreObj.points;
+    if (fcScoreObj.points >= 5 && !badges.includes("🃏 Sihirbaz")) badges.push("🃏 Sihirbaz");
   }
 
   return { score, badges, average: average.toFixed(0) };
@@ -1266,6 +1290,25 @@ app.put("/api/teacher/performance-override", authRequired, express.json(), (req,
   }
 
   res.json({ ok: true });
+});
+
+// YENİ: Sihirli Kartlar Puan Ekleme (Öğrenci Kendi Puanını Artırır)
+app.post("/api/student/flashcard-score", authRequired, express.json(), (req, res) => {
+  if (req.auth.role !== "student") return res.status(403).json({ ok: false });
+  const { classId, points } = req.body;
+  if (!classId) return res.status(400).json({ ok: false });
+
+  if (!db.flashcardScores) db.flashcardScores = [];
+  
+  let fcObj = db.flashcardScores.find(o => o.classId === classId && o.studentId === req.auth.userId);
+  if (!fcObj) {
+    fcObj = { classId, studentId: req.auth.userId, points: 0 };
+    db.flashcardScores.push(fcObj);
+  }
+  
+  fcObj.points += Number(points || 1);
+  
+  res.json({ ok: true, newScore: fcObj.points });
 });
 
 // ===== FALLBACK =====

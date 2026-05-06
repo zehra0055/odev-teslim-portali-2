@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Ödev Teslim Portalı | Öğrenci Paneli</title>
-  <link rel="stylesheet" href="ogrenci.css" />
+  <link rel="stylesheet" href="ogrenci.css?v=4" />
   
   <!-- Quill.js for Word-like Editor -->
   <link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet">
@@ -75,6 +75,7 @@
           <button class="navbtn active" data-view="dashboard">📊 Dashboard</button>
           <button class="navbtn" data-view="homework-editor" style="color:#4f46e5;">📝 Ödev Hazırla</button>
           <button class="navbtn" data-view="presentation-editor" style="color:#10b981;">📽️ Sunum Hazırla</button>
+          <button class="navbtn" data-view="flashcards" style="color:#d946ef;">🧠 Zeka Kartları</button>
           <button class="navbtn" data-view="assignments">📌 Ödevler</button>
           <button class="navbtn" data-view="submit">📤 Dosya Teslim Et</button>
           <button class="navbtn" data-view="history">🕘 Geçmiş</button>
@@ -99,7 +100,10 @@
             <h1>Dashboard</h1>
             <p class="muted">Seçili sınıfa ait hızlı özet.</p>
           </div>
-          <div class="chip" id="activeClassChip">Sınıf: —</div>
+          <div style="display:flex; gap:10px; align-items:center;">
+             <button class="btn ghost" id="openCalendarBtn" style="color:var(--primary); border-color:var(--primary);">📅 Akademik Takvim</button>
+             <div class="chip" id="activeClassChip">Sınıf: —</div>
+          </div>
         </div>
 
         <div class="cards-4">
@@ -120,9 +124,15 @@
             <div class="kpi-label">Notlandırıldı</div>
           </div>
         </div>
+        </div>
+
+        <div style="margin-bottom: 14px;">
+          <button class="btn primary block" id="generatePdfGuideBtn" style="background: linear-gradient(135deg, #10b981, #059669); border:none; box-shadow: 0 4px 15px rgba(16, 185, 129, 0.3); font-size:16px; padding: 12px;">
+            🎯 Tüm Konulardan Sınav Fasikülü Üret (PDF)
+          </button>
+        </div>
 
         <div class="grid-2">
-          
           <!-- YENİ: Öğrenci Ekran Takip ve Odak Analizi Sistemi -->
           <div class="panel" style="grid-column: 1 / -1; background:linear-gradient(135deg, rgba(255,255,255,0.9), rgba(238,242,255,0.9)); border-left:4px solid #6366f1;">
             <div class="panel-title" style="display:flex; align-items:center; gap:8px; color:#312e81;">
@@ -551,6 +561,58 @@
         </div>
       </section>
 
+      <!-- YENİ: SİHİRLİ BİLGİ KARTLARI -->
+      <section class="view" id="view-flashcards">
+        <div class="page-head">
+          <div>
+            <h1>🧠 Zeka Kartları</h1>
+            <p class="muted">Uzun metinleri yapay zeka ile 3 boyutlu çalışma kartlarına dönüştür.</p>
+          </div>
+        </div>
+
+        <div class="grid-2">
+          <div class="panel" style="background: linear-gradient(145deg, #ffffff, #fdf4ff); border: 2px solid #e879f9; box-shadow: 0 10px 30px rgba(217, 70, 239, 0.15);">
+            <div class="panel-title" style="color: #86198f; font-size: 18px;">✨ Kaynak Seçimi</div>
+            <div class="panel-sub" style="color: #a21caf;">İster bir ödev seç, ister kendi notunu yapıştır.</div>
+            
+            <div class="field" style="margin-top:10px;">
+              <label style="font-size:12px; font-weight:bold;">Ödevden Soru Çıkar</label>
+              <select id="flashcardAssignmentSelect" style="width:100%; border:2px solid #fbcfe8; border-radius:8px; padding:0 10px; background: rgba(255,255,255,0.8); color: #4a044e; font-weight:bold; outline:none;">
+                <option value="">-- Serbest Metin Kullan --</option>
+              </select>
+            </div>
+
+            <div style="text-align:center; margin: 10px 0; color:var(--muted); font-size:12px; font-weight:bold;">VEYA</div>
+            
+            <textarea id="flashcardSourceText" rows="6" placeholder="Serbest bir ders notu veya okuma parçası yapıştırın..." style="width:100%; border:2px solid #fbcfe8; border-radius:8px; padding:12px; font-family:inherit; resize:vertical; background: rgba(255,255,255,0.8); color: #4a044e; outline:none; font-weight:500; box-shadow: inset 0 2px 4px rgba(217, 70, 239, 0.05);"></textarea>
+            
+            <button class="btn primary block" id="generateFlashcardsBtn" style="background:linear-gradient(135deg, #d946ef, #8b5cf6); border:none; margin-top:15px; font-size:16px; box-shadow: 0 4px 15px rgba(217, 70, 239, 0.4);">✨ Kartları Üret</button>
+            <div class="alert" id="flashcardAlert" hidden style="margin-top:10px;"></div>
+          </div>
+
+          <div class="panel" style="background:linear-gradient(135deg, #fdf4ff, #f3e8ff); border:1px dashed #d946ef;">
+            <div class="panel-title" style="color:#86198f;">Neden Zeka Kartları?</div>
+            <div class="panel-sub" style="color:#a21caf; margin-bottom:15px;">Nasıl çalışır ve ne işe yarar?</div>
+            <ul style="font-size:14px; color:#4a044e; line-height:1.6; padding-left:20px;">
+              <li style="margin-bottom:8px;">Yapay zeka verdiğin metni okur ve içindeki <b>en kritik bilgileri</b> tespit eder.</li>
+              <li style="margin-bottom:8px;">Bu bilgileri anında <b>Soru-Cevap</b> oyun kartlarına dönüştürür.</li>
+              <li style="margin-bottom:8px;">Oluşan kartların ön yüzündeki soruyu oku, cevabını kutucuğa yaz ve <b>"Cevabı Göster"</b> butonuna tıklayarak doğru bilip bilmediğini kontrol et!</li>
+            </ul>
+            <div style="text-align:center; margin-top:20px; font-size:40px;">🧠 🪄 🃏</div>
+          </div>
+        </div>
+
+        <div class="split" style="margin: 20px 0;"></div>
+        
+        <div id="flashcardsLoading" hidden style="text-align:center; padding:30px; font-weight:bold; color:#8b5cf6; font-size:18px;">
+          <span style="display:inline-block; animation:spin 1s linear infinite; margin-right:10px;">⏳</span> Kartlar üretiliyor, lütfen bekle...
+        </div>
+
+        <div id="flashcardContainer" class="flashcards-grid">
+          <!-- Kartlar JS ile buraya basılacak -->
+        </div>
+      </section>
+
     </section>
   </main>
 
@@ -600,7 +662,7 @@
 
     <div class="widget-triggers">
       <button class="trigger-btn ai-trigger" id="aiBtn" title="AI Asistanı">🤖</button>
-      <button class="trigger-btn chat-trigger" id="chatBtn" title="Öğretmenle Sohbet">👨‍🏫</button>
+      <button class="trigger-btn chat-trigger" id="chatBtn" title="Öğretmenle Sohbet" style="position:relative;">👨‍🏫 <span class="badge" id="chatBadge" hidden style="position:absolute; top:-5px; right:-5px; background:#ef4444; color:white; font-size:11px; padding:2px 6px; border-radius:99px; border:2px solid white;">0</span></button>
     </div>
   </div>
 
@@ -752,6 +814,183 @@
       </div>
     </div>
   </div>
+
+  <!-- YENİ: FLASHCARD POPUP MODAL -->
+  <div class="modal" id="flashcardPopupModal" aria-hidden="true" style="z-index: 9999;">
+    <div class="modal-card" style="background: linear-gradient(135deg, #fdf4ff, #f3e8ff); border:2px solid #d946ef; box-shadow: 0 10px 40px rgba(217, 70, 239, 0.3);">
+      <div class="modal-top" style="border-bottom:none;">
+        <div class="modal-title" style="color:#86198f; font-size:18px;">⏰ Sürpriz Soru Zamanı!</div>
+        <button class="icon-btn" data-close="flashcardPopupModal" style="color:#d946ef;">✕</button>
+      </div>
+      <div style="padding-top:10px; text-align:center;">
+        <div style="font-size:14px; color:#a21caf; margin-bottom:15px;">Konuyu unutmamak için aralıklı tekrar!</div>
+        
+        <div class="flashcard popup-flashcard" id="popupFlashcard" style="margin: 0 auto 20px; width:100%;">
+          <div class="flashcard-inner">
+            <div class="flashcard-front">
+              <div class="fc-title">Soru</div>
+              <div class="fc-text" id="popupQuestionText">Yükleniyor...</div>
+            </div>
+            <div class="flashcard-back">
+              <div style="font-size:11px; color:#fbcfe8; font-weight:bold; margin-bottom:4px; text-transform:uppercase;">Senin Cevabın</div>
+              <div id="popupUserAnswerText" style="font-size:14px; margin-bottom:12px; font-style:italic; font-weight:bold; color:#fff; border-bottom: 1px dashed rgba(255,255,255,0.4); padding-bottom:6px; word-break:break-word;"></div>
+              <div class="fc-title">Gerçek Cevap</div>
+              <div class="fc-text" id="popupAnswerText">Yükleniyor...</div>
+            </div>
+          </div>
+        </div>
+
+        <input type="text" id="popupAnswerInput" placeholder="Cevabını buraya yaz..." style="width:100%; padding:12px; border:2px solid #e879f9; border-radius:8px; margin-bottom:15px; text-align:center; font-weight:bold; color:#4a044e;" />
+        
+        <button class="btn primary block" id="popupShowAnswerBtn" style="background:#d946ef; border:none; margin-bottom:10px;">Cevabı Göster</button>
+
+        <div id="popupEvalArea" hidden style="display:flex; gap:10px; margin-bottom:10px;">
+          <button class="btn" id="popupCorrectBtn" style="flex:1; background:#10b981; color:white; border:none; font-weight:900; font-size:15px; letter-spacing:0.5px; padding:8px 0;">Doğru Bildim 🎉</button>
+          <button class="btn" id="popupWrongBtn" style="flex:1; background:#ef4444; color:white; border:none; font-weight:900; font-size:15px; letter-spacing:0.5px; padding:8px 0; display:flex; align-items:center; justify-content:center; gap:5px;">Yanlış Bildim <span style="font-size:18px; font-weight:900; line-height:1;">✖</span></button>
+        </div>
+
+        <div class="alert" id="popupAlert" hidden></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal" id="calendarModal" aria-hidden="true">
+    <div class="modal-card" style="max-width: 900px;">
+      <div class="modal-top">
+        <div class="modal-title" style="display:flex; flex-direction:column;">
+          <div style="font-size:18px;">📅 Akademik Takvim</div>
+          <div style="font-size:12px; color:var(--muted); font-weight:normal;">SİNOP ÜNİVERSİTESİ 2025-2026 EĞİTİM-ÖĞRETİM YILI ÖNLİSANS-LİSANS</div>
+        </div>
+        <button class="icon-btn" data-close="calendarModal">✕</button>
+      </div>
+      <div class="panel-in-modal" id="calendarContent" style="padding: 20px; max-height: 70vh; overflow-y: auto;">
+        <table class="calendar-table">
+          <thead>
+            <tr>
+              <th style="width: 40%;">Faaliyet</th>
+              <th style="width: 30%;">Güz Yarıyılı</th>
+              <th style="width: 30%;">Bahar Yarıyılı</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Öğrenci Bilgi Paketi Üzerinden Ders Tanıtım Formları Ve Ders Değerlendirme Ölçütlerinin Tanımlanması</td>
+              <td>1 Ağustos - 1 Eylül 2025</td>
+              <td>1 - 26 Ocak 2026</td>
+            </tr>
+            <tr>
+              <td>Ders Programlarının ÖBS'ye Girilmesi / Harç Ödemelerinin Başlaması</td>
+              <td>1 Eylül 2025</td>
+              <td>26 Ocak 2026</td>
+            </tr>
+            <tr>
+              <td>Ders Kayıtları</td>
+              <td>2 - 8 Eylül 2025</td>
+              <td>27 Ocak - 2 Şubat 2026</td>
+            </tr>
+            <tr class="highlight-row">
+              <td>Dersler</td>
+              <td>15 Eylül - 22 Aralık 2025</td>
+              <td>9 Şubat - 22 Mayıs 2026</td>
+            </tr>
+            <tr>
+              <td>Seviye Tespit Sınavları</td>
+              <td>25 Eylül 2025</td>
+              <td>---</td>
+            </tr>
+            <tr>
+              <td>Ders Ekleme ve Silme İçin Son Tarih</td>
+              <td>29 Eylül 2025</td>
+              <td>23 Şubat 2026</td>
+            </tr>
+            <tr class="highlight-row">
+              <td>Ara Sınavlar</td>
+              <td>1 - 9 Kasım 2025</td>
+              <td>28 Mart - 5 Nisan 2026</td>
+            </tr>
+            <tr>
+              <td>Ara Sınav Sonuçlarının ÖBS'ne Girilmesi</td>
+              <td>9 Aralık 2025</td>
+              <td>28 Nisan 2026</td>
+            </tr>
+            <tr class="highlight-row">
+              <td>Yarıyıl Sonu Sınavları (Final)</td>
+              <td>24 Aralık 2025 - 4 Ocak 2026</td>
+              <td>1 - 12 Haziran 2026</td>
+            </tr>
+            <tr>
+              <td>Yarıyıl Sonu Sınav Sonuçlarının İlanı / Şartlı Başarılı Hesaplaması</td>
+              <td>7 - 8 Ocak 2026</td>
+              <td>17 - 18 Haziran 2026</td>
+            </tr>
+            <tr class="highlight-row">
+              <td>Bütünleme Sınavları</td>
+              <td>10 - 18 Ocak 2026</td>
+              <td>20 - 28 Haziran 2026</td>
+            </tr>
+            <tr>
+              <td>Bütünleme Sonuçlarının İlanı / Şartlı Başarılı Hesaplaması</td>
+              <td>21 - 22 Ocak 2026</td>
+              <td>1 - 2 Temmuz 2026</td>
+            </tr>
+            <tr>
+              <td>Mezuniyet Sınavı Başvuruları ve Sınavlar</td>
+              <td>23 - 29 Ocak 2026</td>
+              <td>3 - 9 Temmuz 2026</td>
+            </tr>
+            <tr>
+              <td>Fakülte/Y.O./M.Y.O. EDÖ. Yaz Stajı</td>
+              <td colspan="2" style="text-align:center; font-weight:bold;">13 Haziran - 12 Eylül 2026</td>
+            </tr>
+            <tr>
+              <td>I. ve II. Ek Sınavlar</td>
+              <td colspan="2" style="text-align:center; font-style:italic;">Akademik Birimler tarafından planlanıp ilan edilecektir.</td>
+            </tr>
+          </tbody>
+        </table>
+        
+        <div class="calendar-info">
+          <b>Açıklamalar:</b><br/>
+          • Sinop Üniversitesi yönetmeliği uyarınca Cumartesi ve Pazar günleri de sınav yapılabilir.<br/>
+          • Ara sınav tarihleri arasında ders yapılmayacaktır.<br/>
+          • Yeni kayıt yaptıran öğrencilerin Zorunlu Yabancı Dil ve Temel Bilgi Teknolojileri derslerinden muafiyet için seviye tespit sınavına katılımı isteğe bağlıdır.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- GİZLİ PDF ŞABLONU -->
+  <div style="display: none;">
+    <div id="pdfExportTemplate" style="width: 794px; min-height: 1123px; padding: 40px; background: white; font-family: 'Segoe UI', Arial, sans-serif; color: #1e293b; box-sizing: border-box;">
+      <!-- Kapak -->
+      <div style="text-align: center; border-bottom: 2px solid #3b82f6; padding-bottom: 20px; margin-bottom: 30px;">
+        <h1 style="margin: 0; color: #1d4ed8; font-size: 28px;">SİNOP ÜNİVERSİTESİ</h1>
+        <h2 style="margin: 5px 0 0; color: #3b82f6; font-size: 22px;">Akıllı Çalışma Fasikülü</h2>
+        <div style="margin-top: 10px; font-size: 14px; color: #64748b;" id="pdfClassAndDate">Sınıf: — | Tarih: —</div>
+      </div>
+      <!-- Özet -->
+      <div style="margin-bottom: 30px;">
+        <h3 style="color: #0f172a; border-bottom: 1px solid #cbd5e1; padding-bottom: 5px;">📚 Konu Özeti</h3>
+        <div id="pdfSummaryContent" style="font-size: 14px; line-height: 1.6; text-align: justify; white-space: pre-wrap;">Özet bekleniyor...</div>
+      </div>
+      <!-- Sorular -->
+      <div style="margin-bottom: 30px;">
+        <h3 style="color: #0f172a; border-bottom: 1px solid #cbd5e1; padding-bottom: 5px;">✍️ Çalışma Soruları</h3>
+        <div id="pdfQuestionsList" style="font-size: 14px; line-height: 1.8;"></div>
+      </div>
+      <!-- html2pdf pagebreak -->
+      <div class="html2pdf__page-break"></div>
+      <!-- Cevap Anahtarı -->
+      <div style="margin-top: 30px;">
+        <h3 style="color: #0f172a; border-bottom: 1px solid #cbd5e1; padding-bottom: 5px;">🔑 Cevap Anahtarı</h3>
+        <div id="pdfAnswersList" style="font-size: 13px; line-height: 1.6; background: #f8fafc; padding: 15px; border-radius: 8px; border: 1px dashed #cbd5e1;"></div>
+      </div>
+      <div style="text-align: center; margin-top: 50px; font-size: 12px; color: #94a3b8; font-style: italic;">
+        Bu fasikül Yapay Zeka Asistanı tarafından otomatik oluşturulmuştur. Sınavlarında başarılar dileriz!
+      </div>
+    </div>
+  </div>
+
   <script src="ogrenci.js" defer></script>
 </body>
 </html>

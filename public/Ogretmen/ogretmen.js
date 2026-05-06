@@ -1356,6 +1356,12 @@ if(perfForm) {
   if(notifBtn && notifDropdown) {
     notifBtn.addEventListener('click', () => { 
       notifDropdown.hidden = !notifDropdown.hidden; 
+      if (!notifDropdown.hidden) {
+        const chatPanel = document.getElementById('chatPanel');
+        const aiPanel = document.getElementById('aiPanel');
+        if (chatPanel) chatPanel.hidden = true;
+        if (aiPanel) aiPanel.hidden = true;
+      }
     });
   }
 
@@ -1364,6 +1370,10 @@ if(perfForm) {
   const closeChat = document.getElementById('closeChat');
   if(chatBtn) chatBtn.addEventListener('click', () => { 
     if(chatPanel) chatPanel.hidden = false; 
+    const aiPanel = document.getElementById('aiPanel');
+    const notifDropdown = document.getElementById('notifDropdown');
+    if (aiPanel) aiPanel.hidden = true;
+    if (notifDropdown) notifDropdown.hidden = true;
     loadChat(); 
   });
   if(closeChat) closeChat.addEventListener('click', () => { if(chatPanel) chatPanel.hidden = true; });
@@ -1737,6 +1747,10 @@ const aiClassChip = document.getElementById("aiClassChip");
 
 if (aiBtn) aiBtn.addEventListener("click", () => {
   aiPanel.hidden = false;
+  const chatPanel = document.getElementById('chatPanel');
+  const notifDropdown = document.getElementById('notifDropdown');
+  if (chatPanel) chatPanel.hidden = true;
+  if (notifDropdown) notifDropdown.hidden = true;
   if(aiClassChip && activeClassId) {
     const cls = classesCache.find(c => c.id === activeClassId);
     if(cls) aiClassChip.textContent = "📚 Sınıf: " + cls.name;
@@ -2034,5 +2048,35 @@ async function aiAsk(promptText) {
   
   // Make global so it can be called from inline or within the IIFE
   window.openStudentProfile = openStudentProfile;
+
+  // ========= YENİ: OKUNMAMIŞ SOHBET BİLDİRİMİ (BADGE) =========
+  async function fetchChatUnreadCount() {
+    if (!token) return;
+    try {
+      const data = await apiFetch("/api/chat/unread/count");
+      const badge = document.getElementById("chatBadge");
+      if (badge) {
+        if (data.count > 0) {
+          badge.textContent = data.count;
+          badge.hidden = false;
+        } else {
+          badge.hidden = true;
+        }
+      }
+    } catch (e) {}
+  }
+
+  setInterval(fetchChatUnreadCount, 5000);
+  setTimeout(fetchChatUnreadCount, 1000);
+
+  const _chatBtnEl = document.getElementById('chatBtn');
+  if (_chatBtnEl) {
+    _chatBtnEl.addEventListener('click', async () => {
+      try {
+        await apiFetch("/api/chat/read-all", { method: "POST" });
+        fetchChatUnreadCount();
+      } catch(e) {}
+    });
+  }
 
 })();
