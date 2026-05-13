@@ -62,7 +62,8 @@ const db = {
   messages: [],      // YENİ: Sohbet havuzu
   groups: [],        // YENİ: Öğrenci çalışma grupları
   group_messages: [], // YENİ: Grup içi mesajlaşmalar
-  performanceOverrides: [] // YENİ: Öğretmen Performans Notları
+  performanceOverrides: [], // YENİ: Öğretmen Performans Notları
+  skillTreeQuests: [] // YENİ: Davranışsal Yetenek Ağacı Görevleri (Sözleşmeler vb.)
 };
 
 // ============================
@@ -361,7 +362,21 @@ function calcStudentPerformance(classId, studentId) {
   const asgn = db.assignments.filter(a => a.classId === classId);
   const subs = db.submissions.filter(s => s.classId === classId && s.studentId === studentId);
   
-  if (asgn.length === 0) return { score: 100, badges: ["🎯 Yeni Başlangıç"] };
+  if (asgn.length === 0) {
+    let score = 100;
+    const badges = ["🎯 Yeni Başlangıç"];
+    
+    const override = (db.performanceOverrides || []).find(o => o.classId === classId && o.studentId === studentId);
+    if (override) score = override.score;
+    
+    const fcScoreObj = (db.flashcardScores || []).find(o => o.classId === classId && o.studentId === studentId);
+    if (fcScoreObj && fcScoreObj.points > 0) {
+      score += fcScoreObj.points;
+      if (fcScoreObj.points >= 5) badges.push("🃏 Sihirbaz");
+    }
+    
+    return { score, badges, average: "0" };
+  }
   
   let score = 50; 
   let lateCount = 0;
@@ -1310,6 +1325,126 @@ app.post("/api/student/flashcard-score", authRequired, express.json(), (req, res
   
   res.json({ ok: true, newScore: fcObj.points });
 });
+
+// ============================
+// YENİ: DAVRANIŞSAL YETENEK AĞACI
+// ============================
+
+// 1. Yetenek Ağacı Durumunu Getir
+app.get("/api/student/skill-tree/:classId", authRequired, (req, res) => {
+  if (req.auth.role !== "student") return res.status(403).json({ ok: false });
+  const classId = req.params.classId;
+  const studentId = req.auth.userId;
+
+  const status = {
+    timeManagement: "green", // Zaman Yönetimi
+    academicMastery: "green", // Akademik Ustalık
+    collaboration: "green"    // İşbirliği
+  };
+
+  const asgn = db.assignments.filter(a => a.classId === classId);
+  const subs = db.submissions.filter(s => s.classId === classId && s.studentId === studentId);
+  
+  // A. Zaman Yönetimi Kontrolü
+  // Eğer tamamlanmış veya aktif bir Zaman Sözleşmesi (quest) varsa yeşil yap.
+  const timeQuest = db.skillTreeQuests.find(q => q.studentId === studentId && q.classId === classId && q.type === "time_contract");
+  if (timeQuest) {
+    status.timeManagement = "green";
+  } else {
+    // Sözleşme yoksa geç kalan veya teslim edilmeyen var mı bak
+    let lateOrMissing = false;
+    asgn.forEach(a => {
+      const sub = subs.find(s => s.assignmentId === a.id) || subs.find(s => s.title === a.title);
+      if (!sub) {
+        if (a.due && new Date(a.due) < new Date(new Date().setHours(0,0,0,0))) lateOrMissing = true;
+      } else if (a.due && sub.submittedAt) {
+        const dDue = new Date(a.due).setHours(23,59,59,999);
+        if (new Date(sub.submittedAt).getTime() > dDue) lateOrMissing = true;
+      }
+    });
+    if (lateOrMissing) status.timeManagement = "red";
+  }
+
+  // B. Akademik Ustalık Kontrolü
+  const academicQuest = db.skillTreeQuests.find(q => q.studentId === studentId && q.classId === classId && q.type === "academic_reflection");
+  if (academicQuest) {
+    status.academicMastery = "green";
+  } else {
+    const perf = calcStudentPerformance(classId, studentId);
+    if (perf.score < 60) status.academicMastery = "red";
+  }
+
+  // C. İşbirliği Kontrolü
+  const groupMsgCount = db.group_messages.filter(m => {
+    const group = db.groups.find(g => g.id === m.groupId);
+    return group && group.classId === classId && m.senderId === studentId;
+  }).length;
+  
+  // Öğrenci bu sınıftaki gruplarda hiç mesaj atmamışsa veya dosya yüklememişse kırmızı
+  if (groupMsgCount === 0 && asgn.length > 0) {
+    status.collaboration = "red";
+  }
+
+  res.json({ ok: true, status });
+});
+
+// 2. Zaman Yönetimi Kurtarma (Erken Kuş Sözleşmesi)
+app.post("/api/student/skill-tree/quest/time", authRequired, express.json(), (req, res) => {
+  if (req.auth.role !== "student") return res.status(403).json({ ok: false });
+  const { classId } = req.body;
+  
+  db.skillTreeQuests.push({
+    id: makeId("quest"),
+    studentId: req.auth.userId,
+    classId,
+    type: "time_contract",
+    createdAt: new Date().toISOString()
+  });
+
+  res.json({ ok: true, message: "Zaman Yolcusu Sözleşmesi onaylandı! Yetenek ağacın iyileşti." });
+});
+
+// 3. Akademik Ustalık Kurtarma (Öz Değerlendirme)
+app.post("/api/student/skill-tree/quest/academic", authRequired, express.json(), async (req, res) => {
+  if (req.auth.role !== "student") return res.status(403).json({ ok: false });
+  const { classId, text } = req.body;
+
+  if (!text || text.trim().length < 10) {
+    return res.json({ ok: false, message: "Lütfen biraz daha detaylı bir değerlendirme yazın." });
+  }
+
+  try {
+    if (!process.env.GROQ_API_KEY || process.env.GROQ_API_KEY === "DUMMY_KEY") {
+      // API yoksa direkt onay ver
+      db.skillTreeQuests.push({ id: makeId("quest"), studentId: req.auth.userId, classId, type: "academic_reflection", createdAt: new Date().toISOString() });
+      return res.json({ ok: true, message: "Yapay zeka kapalı olsa da çaban takdir edildi!" });
+    }
+
+    const systemPrompt = `Bir öğretmensin. Öğrencinin yazdığı bu "öz değerlendirme" yazısının samimi bir çaba içerip içermediğini analiz et. Öğrenci kendi eksiklerini fark etmiş mi? Yanıtın sadece "EVET" veya "HAYIR" olsun. Başka hiçbir şey yazma.`;
+    
+    const chatCompletion = await groq.chat.completions.create({
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: text }
+      ],
+      model: "llama-3.3-70b-versatile",
+      temperature: 0.2,
+      max_tokens: 10,
+    });
+    
+    const reply = (chatCompletion.choices[0]?.message?.content || "").trim().toUpperCase();
+    
+    if (reply.includes("EVET")) {
+      db.skillTreeQuests.push({ id: makeId("quest"), studentId: req.auth.userId, classId, type: "academic_reflection", createdAt: new Date().toISOString() });
+      return res.json({ ok: true, message: "Yapay zeka samimiyetini doğruladı. Farkındalığın için tebrikler, yetenek dalın yeşerdi!" });
+    } else {
+      return res.json({ ok: false, message: "Bu biraz yüzeysel oldu. Lütfen kendi zayıf yönlerinle ilgili biraz daha samimi ve açıklayıcı yaz." });
+    }
+  } catch (e) {
+    return res.json({ ok: false, message: "Şu an analiz yapılamadı." });
+  }
+});
+
 
 // ===== FALLBACK =====
 app.use((req, res) => res.status(404).send("404 - Not Found"));

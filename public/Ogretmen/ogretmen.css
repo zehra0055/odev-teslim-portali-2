@@ -258,16 +258,20 @@ select{
 .muted{ margin:8px 0 0; color:var(--muted); font-weight:800; line-height:1.6; }
 
 .chip{
-  height:36px;
+  height:40px;
   display:inline-flex;
   align-items:center;
-  padding:0 12px;
-  border-radius:999px;
+  padding:0 14px;
+  border-radius:12px;
   background: rgba(255,255,255,.8);
   border:1px solid rgba(229,231,235,.9);
   color:#1e3a5f;
   font-weight:900;
-  font-size:12px;
+  font-size:14px;
+  backdrop-filter:blur(4px);
+  -webkit-backdrop-filter:blur(4px);
+  white-space:nowrap;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.05);
 }
 
 .view{ display:none; }

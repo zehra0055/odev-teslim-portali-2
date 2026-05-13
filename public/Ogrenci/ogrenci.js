@@ -114,7 +114,8 @@ const views = {
   history: document.getElementById("view-history"),
   groups: document.getElementById("view-groups"), // YENİ: Gruplar
   live: document.getElementById("view-live"),
-  flashcards: document.getElementById("view-flashcards")
+  flashcards: document.getElementById("view-flashcards"),
+  skilltree: document.getElementById("view-skilltree") // YENİ: Yetenek Ağacı
 };
 
 const classSelect = document.getElementById("classSelect");
@@ -124,6 +125,7 @@ const subClassChip = document.getElementById("subClassChip");
 const histClassChip = document.getElementById("histClassChip");
 const editorClassChip = document.getElementById("editorClassChip");
 const presClassChip = document.getElementById("presClassChip");
+const skillClassChip = document.getElementById("skillClassChip");
 
 // KPIs
 const kpiMyClasses = document.getElementById("kpiMyClasses");
@@ -613,6 +615,9 @@ function setView(name){
   if(name === 'flashcards') {
     fillFlashcardAssignmentSelect();
   }
+  if(name === 'skilltree') {
+    loadSkillTree();
+  }
 }
 
 function fillFlashcardAssignmentSelect() {
@@ -639,6 +644,7 @@ function setActiveClassChip(){
   if (histClassChip) histClassChip.textContent = label;
   if (editorClassChip) editorClassChip.textContent = label;
   if (presClassChip) presClassChip.textContent = label;
+  if (skillClassChip) skillClassChip.textContent = label;
 }
 
 async function fillClassSelect(){
@@ -798,6 +804,146 @@ function renderAssignments(){
     assignmentList.appendChild(el);
   });
 }
+
+// ============================
+// YENİ: DAVRANIŞSAL YETENEK AĞACI
+// ============================
+async function loadSkillTree() {
+  if (!activeClassId) {
+    document.getElementById("skillTreeContainer").innerHTML = "<div style='color:#64748b; font-size:14px; margin-top:20px;'>Önce bir sınıf seçin.</div>";
+    return;
+  }
+
+  // Elementleri bul
+  const stTime = document.getElementById("st-time");
+  const stAcademic = document.getElementById("st-academic");
+  const stCollab = document.getElementById("st-collab");
+
+  const sTimeSt = document.getElementById("st-time-status");
+  const sAcademicSt = document.getElementById("st-academic-status");
+  const sCollabSt = document.getElementById("st-collab-status");
+
+  const qTime = document.getElementById("st-time-quest");
+  const qAcademic = document.getElementById("st-academic-quest");
+  const qCollab = document.getElementById("st-collab-quest");
+
+  try {
+    const data = await apiFetch(`/api/student/skill-tree/${activeClassId}`);
+    if (data.ok && data.status) {
+      // Elementleri bul (SVG path'ler)
+      const svgTime = document.getElementById("svg-branch-time");
+      const svgAcademic = document.getElementById("svg-branch-academic");
+      const svgCollab = document.getElementById("svg-branch-collab");
+
+      function setBranchState(el, cardClass, svgEl, statusVal, pillEl, questEl, glowId) {
+        if (statusVal === "green") {
+          el.className = `panel skill-branch ${cardClass} branch-green`;
+          pillEl.innerHTML = '<span class="pill active-status">Sağlıklı</span>';
+          if (questEl) {
+            questEl.classList.remove('visible');
+            setTimeout(() => questEl.hidden = true, 400);
+          }
+          if (svgEl) {
+            svgEl.style.stroke = "#22c55e";
+            svgEl.style.filter = `url(#glowGreen)`;
+          }
+        } else {
+          el.className = `panel skill-branch ${cardClass} branch-red`;
+          pillEl.innerHTML = '<span class="pill offline-status">Zayıf</span>';
+          if (questEl) {
+            questEl.hidden = false;
+            setTimeout(() => questEl.classList.add('visible'), 10);
+          }
+          if (svgEl) {
+            svgEl.style.stroke = "#ef4444";
+            svgEl.style.filter = `url(#glowRed)`;
+          }
+        }
+      }
+
+      setBranchState(stTime, "tree-card-time", svgTime, data.status.timeManagement, sTimeSt, qTime);
+      setBranchState(stAcademic, "tree-card-academic", svgAcademic, data.status.academicMastery, sAcademicSt, qAcademic);
+      setBranchState(stCollab, "tree-card-collab", svgCollab, data.status.collaboration, sCollabSt, qCollab);
+    }
+  } catch (error) {
+    console.error("Yetenek ağacı yüklenemedi:", error);
+  }
+}
+
+// Zaman Görevi Onay
+const stTimeQuestBtn = document.getElementById("stTimeQuestBtn");
+if (stTimeQuestBtn) {
+  stTimeQuestBtn.addEventListener("click", async () => {
+    stTimeQuestBtn.disabled = true;
+    stTimeQuestBtn.textContent = "İmzalanıyor...";
+    try {
+      const data = await apiFetch("/api/student/skill-tree/quest/time", {
+        method: "POST",
+        body: JSON.stringify({ classId: activeClassId })
+      });
+      if (data.ok) {
+        stTimeQuestBtn.textContent = "Hedef Belirlendi ✅";
+        setTimeout(() => {
+          loadSkillTree();
+          stTimeQuestBtn.disabled = false;
+          stTimeQuestBtn.textContent = "Hedefi Belirle";
+        }, 1000);
+      } else {
+        alert(data.message || "Hata oluştu");
+        stTimeQuestBtn.disabled = false;
+        stTimeQuestBtn.textContent = "Hedefi Belirle";
+      }
+    } catch (e) {
+      alert("Hata: " + e.message);
+      stTimeQuestBtn.disabled = false;
+      stTimeQuestBtn.textContent = "Hedefi Belirle";
+    }
+  });
+}
+
+// Akademik Görev Onay (Öz Değerlendirme)
+const stAcademicQuestBtn = document.getElementById("stAcademicQuestBtn");
+if (stAcademicQuestBtn) {
+  stAcademicQuestBtn.addEventListener("click", async () => {
+    const txt = document.getElementById("stAcademicText").value;
+    if (!txt || txt.length < 10) return alert("Lütfen daha detaylı bir açıklama girin.");
+    
+    stAcademicQuestBtn.disabled = true;
+    stAcademicQuestBtn.textContent = "AI Analiz Ediyor...";
+    try {
+      const data = await apiFetch("/api/student/skill-tree/quest/academic", {
+        method: "POST",
+        body: JSON.stringify({ classId: activeClassId, text: txt })
+      });
+      if (data.ok) {
+        stAcademicQuestBtn.textContent = "Görev Tamamlandı ✅";
+        document.getElementById("stAcademicText").value = "";
+        setTimeout(() => {
+          loadSkillTree();
+          stAcademicQuestBtn.disabled = false;
+          stAcademicQuestBtn.textContent = "Öz Değerlendirmeyi Gönder";
+        }, 1000);
+      } else {
+        alert(data.message || "Hata oluştu");
+        stAcademicQuestBtn.disabled = false;
+        stAcademicQuestBtn.textContent = "Öz Değerlendirmeyi Gönder";
+      }
+    } catch (e) {
+      alert("Hata: " + e.message);
+      stAcademicQuestBtn.disabled = false;
+      stAcademicQuestBtn.textContent = "Öz Değerlendirmeyi Gönder";
+    }
+  });
+}
+
+// İşbirliği Görevi Yonlendirme
+const stCollabQuestBtn = document.getElementById("stCollabQuestBtn");
+if (stCollabQuestBtn) {
+  stCollabQuestBtn.addEventListener("click", () => {
+    setView("groups");
+  });
+}
+
 
 function fillAssignmentSelect(){
   if (!assignmentSelect || !emptyAssignSelect) return;

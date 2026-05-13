@@ -1124,4 +1124,173 @@ input[type="file"]::file-selector-button:hover {
 .shake-wrong {
   animation: shake-wrong 0.4s ease-in-out;
 }
-
+
+
+/* YENİ: DAVRANIŞSAL YETENEK AĞACI (ANİMASYONLU SVG) */
+.magic-tree-wrapper {
+  position: relative;
+  width: 100%;
+  max-width: 1000px;
+  height: 600px;
+  margin: 40px auto;
+  display: flex;
+  justify-content: center;
+}
+.magic-tree-svg {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 0;
+  pointer-events: none;
+}
+.tree-path {
+  stroke-dasharray: 1200;
+  stroke-dashoffset: 1200;
+  animation: growTree 2s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+@keyframes growTree {
+  to { stroke-dashoffset: 0; }
+}
+
+.tree-node-root {
+  position: absolute;
+  bottom: -20px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 2;
+  text-align: center;
+}
+
+.tree-cards-container {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.panel.skill-branch {
+  pointer-events: auto; /* enable clicks inside cards */
+  position: absolute;
+  width: 280px;
+  transition: all 0.3s ease;
+  border-width: 2px;
+  border-style: solid;
+  box-shadow: 0 10px 25px rgba(0,0,0,0.05);
+}
+
+.tree-card-time {
+  top: 150px;
+  left: 5%;
+}
+.tree-card-academic {
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+.tree-card-collab {
+  top: 150px;
+  right: 5%;
+}
+
+.branch-red {
+  border-color: #fda4af;
+  background: #fff1f2;
+}
+.branch-green {
+  border-color: #86efac;
+  background: #f0fdf4;
+}
+.branch-status {
+  margin-top: 10px;
+}
+
+@media (max-width: 900px) {
+  .magic-tree-wrapper {
+    height: auto;
+    flex-direction: column;
+    align-items: center;
+    gap: 30px;
+  }
+  .magic-tree-svg {
+    display: none;
+  }
+  .tree-node-root {
+    position: relative;
+    transform: none;
+    left: auto;
+    bottom: auto;
+  }
+  .tree-cards-container {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    align-items: center;
+    pointer-events: auto;
+  }
+  .panel.skill-branch {
+    position: relative;
+    top: auto !important;
+    left: auto !important;
+    right: auto !important;
+    transform: none !important;
+    width: 100%;
+    max-width: 350px;
+  }
+}
+
+
+/* ===============================
+   YENİ YETENEK AĞACI STİLLERİ
+================================= */
+.quest-bubble {
+  position: absolute;
+  top: 105%;
+  left: 50%;
+  transform: translateX(-50%) scale(0.9);
+  width: 250px;
+  background: #fff1f2;
+  border: 2px dashed #e11d48;
+  border-radius: 12px;
+  padding: 15px;
+  box-shadow: 0 10px 25px rgba(225,29,72,0.2);
+  z-index: 100;
+  opacity: 0;
+  visibility: hidden;
+  transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+.quest-bubble.visible {
+  opacity: 1;
+  visibility: visible;
+  transform: translateX(-50%) scale(1);
+}
+
+.tree-card-time .quest-bubble,
+.tree-card-collab .quest-bubble,
+.tree-card-academic .quest-bubble { 
+  top: 105%; 
+}
+.tree-card-time .quest-bubble::before,
+.tree-card-collab .quest-bubble::before,
+.tree-card-academic .quest-bubble::before { 
+  content: ''; position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%);
+  border-left: 10px solid transparent; border-right: 10px solid transparent; border-bottom: 10px solid #e11d48; 
+}
+
+
+
+@media (max-width: 900px) {
+  .quest-bubble {
+    position: relative;
+    top: auto; left: auto !important; right: auto !important;
+    transform: none !important;
+    width: 100%;
+    margin-top: 15px;
+  }
+  .quest-bubble::before { display: none; }
+  .quest-bubble.visible { transform: none !important; }
+}
+
+

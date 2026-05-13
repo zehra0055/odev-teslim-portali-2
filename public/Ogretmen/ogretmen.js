@@ -1335,12 +1335,12 @@ if(perfForm) {
         body: JSON.stringify({ classId: activeClassId, studentId, score })
       });
       setAlert(alertEl, "ok", "Not başarıyla güncellendi.");
-      setTimeout(() => {
+      setTimeout(async () => {
         closeModal(document.getElementById("perfOverrideModal"));
         btn.disabled = false;
         btn.textContent = "Notu Kaydet";
+        await refreshAll(true);
         populateGroupSettings(); // Refresh list to get fresh items
-        renderStudentList();
       }, 800);
     } catch(err) {
       setAlert(alertEl, "err", err.message || "Hata oluştu.");

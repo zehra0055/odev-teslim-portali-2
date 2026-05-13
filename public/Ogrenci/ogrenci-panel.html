@@ -76,6 +76,7 @@
           <button class="navbtn" data-view="homework-editor" style="color:#4f46e5;">📝 Ödev Hazırla</button>
           <button class="navbtn" data-view="presentation-editor" style="color:#10b981;">📽️ Sunum Hazırla</button>
           <button class="navbtn" data-view="flashcards" style="color:#d946ef;">🧠 Zeka Kartları</button>
+          <button class="navbtn" data-view="skilltree" style="color:#f59e0b;">🌳 Yetenek Ağacı</button>
           <button class="navbtn" data-view="assignments">📌 Ödevler</button>
           <button class="navbtn" data-view="submit">📤 Dosya Teslim Et</button>
           <button class="navbtn" data-view="history">🕘 Geçmiş</button>
@@ -610,6 +611,83 @@
 
         <div id="flashcardContainer" class="flashcards-grid">
           <!-- Kartlar JS ile buraya basılacak -->
+        </div>
+      </section>
+
+      <!-- YENİ: DAVRANIŞSAL YETENEK AĞACI -->
+      <section class="view" id="view-skilltree">
+        <div class="page-head">
+          <div>
+            <h1>🌳 Yetenek Ağacı</h1>
+            <p class="muted">Davranışlarına göre şekillenen interaktif gelişim ağacın.</p>
+          </div>
+          <div class="chip" id="skillClassChip">Sınıf: —</div>
+        </div>
+
+        <div class="magic-tree-wrapper">
+          <!-- Arka Plan SVG Ağaç Çizimi -->
+          <svg viewBox="0 0 1000 700" class="magic-tree-svg">
+            <defs>
+              <filter id="glowGreen"><feGaussianBlur stdDeviation="4" result="coloredBlur"/><feMerge><feMergeNode in="coloredBlur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+              <filter id="glowRed"><feGaussianBlur stdDeviation="8" result="coloredBlur"/><feMerge><feMergeNode in="coloredBlur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+            </defs>
+            
+            <!-- Gerçekçi Odunsu Dallar (Kahverengi Zemin) -->
+            <path d="M485,650 Q495,450 250,300" stroke="#78350f" stroke-width="20" fill="none" stroke-linecap="round" />
+            <path d="M500,650 Q500,400 500,200" stroke="#78350f" stroke-width="20" fill="none" stroke-linecap="round" />
+            <path d="M515,650 Q505,450 750,300" stroke="#78350f" stroke-width="20" fill="none" stroke-linecap="round" />
+
+            <!-- Renkli Dal Katmanları (Animasyonlu ve Parlayan) -->
+            <path class="tree-path branch-path" id="svg-branch-time" d="M485,650 Q495,450 250,300" stroke="#cbd5e1" stroke-width="12" fill="none" stroke-linecap="round" style="transition: all 1s ease;" />
+            <path class="tree-path branch-path" id="svg-branch-academic" d="M500,650 Q500,400 500,200" stroke="#cbd5e1" stroke-width="12" fill="none" stroke-linecap="round" style="transition: all 1s ease;" />
+            <path class="tree-path branch-path" id="svg-branch-collab" d="M515,650 Q505,450 750,300" stroke="#cbd5e1" stroke-width="12" fill="none" stroke-linecap="round" style="transition: all 1s ease;" />
+          </svg>
+
+          <!-- Kök İkonu -->
+          <div class="tree-node-root">
+            <div style="font-size: 60px; filter: drop-shadow(0 0 10px rgba(139,92,246,0.5));">🌱</div>
+            <div style="font-weight:900; color:#1e293b; background:rgba(255,255,255,0.9); padding:4px 12px; border-radius:12px; margin-top:5px; box-shadow: 0 4px 15px rgba(0,0,0,0.1);">Potansiyel Kökü</div>
+          </div>
+
+          <!-- HTML Kartları -->
+          <div class="tree-cards-container" id="skillTreeContainer">
+            <!-- ZAMAN YÖNETİMİ -->
+            <div class="panel skill-branch tree-card-time" id="st-time">
+              <div style="font-size:40px; margin-bottom:10px;">⏳</div>
+              <h2 style="color:#1e293b; margin:0 0 10px;">Zaman Yönetimi</h2>
+              <div id="st-time-status" class="branch-status">Yükleniyor...</div>
+              <div id="st-time-quest" class="quest-bubble" hidden>
+                <h3 style="color:#e11d48; margin:0 0 8px; font-size:14px;">🎯 Kurtarma Görevi</h3>
+                <p style="font-size:12px; color:#475569; line-height:1.4;">Zaman yönetimin zayıflamış görünüyor. Bir sonraki ödevini erkenden teslim etmeyi kendine <strong>"Hedef"</strong> belirleyerek bu yeteneğini hemen geri kazanabilirsin.</p>
+                <button class="btn primary block" id="stTimeQuestBtn" style="margin-top:10px; background:#e11d48; border:none;">Hedefi Belirle</button>
+              </div>
+            </div>
+            
+            <!-- AKADEMİK GELİŞİM -->
+            <div class="panel skill-branch tree-card-academic" id="st-academic">
+              <div style="font-size:40px; margin-bottom:10px;">🧠</div>
+              <h2 style="color:#1e293b; margin:0 0 10px;">Akademik Gelişim</h2>
+              <div id="st-academic-status" class="branch-status">Yükleniyor...</div>
+              <div id="st-academic-quest" class="quest-bubble" hidden>
+                <h3 style="color:#e11d48; margin:0 0 8px; font-size:14px;">🎯 Kurtarma Görevi</h3>
+                <p style="font-size:12px; color:#475569; line-height:1.4; margin-bottom:10px;">Not ortalaman düşmüş. Nerede zorlandığını bir cümleyle açıkla, AI bunu samimi bulursa yeteneğini iyileştirecek.</p>
+                <textarea id="stAcademicText" rows="3" placeholder="Örn: Konuyu tam kavrayamadan teste geçtim..." style="width:100%; border:1px solid #fda4af; border-radius:6px; padding:8px; font-size:12px;"></textarea>
+                <button class="btn primary block" id="stAcademicQuestBtn" style="margin-top:10px; background:#e11d48; border:none;">Öz Değerlendirmeyi Gönder</button>
+              </div>
+            </div>
+            
+            <!-- TAKIM ÇALIŞMASI -->
+            <div class="panel skill-branch tree-card-collab" id="st-collab">
+              <div style="font-size:40px; margin-bottom:10px;">🤝</div>
+              <h2 style="color:#1e293b; margin:0 0 10px;">Takım Çalışması</h2>
+              <div id="st-collab-status" class="branch-status">Yükleniyor...</div>
+              <div id="st-collab-quest" class="quest-bubble" hidden>
+                <h3 style="color:#e11d48; margin:0 0 8px; font-size:14px;">🎯 Kurtarma Görevi</h3>
+                <p style="font-size:12px; color:#475569; line-height:1.4;">Sınıf içi işbirliğinde sessiz kalmışsın. Sınıf grubuna bugün dersle ilgili mesaj atarak veya not paylaşarak bu yeteneğini iyileştirebilirsin.</p>
+                <button class="btn ghost block" id="stCollabQuestBtn" style="margin-top:10px; color:#e11d48; border-color:#fda4af;">Gruplara Git</button>
+              </div>
+            </div>
+          </div>
         </div>
       </section>
 
